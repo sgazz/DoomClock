@@ -4,11 +4,9 @@ struct OnboardingView: View {
     @EnvironmentObject private var viewModel: CountdownViewModel
     @State private var step = 0
     @State private var selectedDate = Date().addingTimeInterval(60 * 60)
-    @State private var selectedHour = Calendar.current.component(.hour, from: Date().addingTimeInterval(60 * 60))
-    @State private var selectedMinute = Calendar.current.component(.minute, from: Date().addingTimeInterval(60 * 60))
     @State private var canEdit = true
     @State private var showsDateWarning = false
-    @State private var isTransitioning = false
+    @State private var isProcessing = false
     @State private var minimumDate = Date()
 
     private var mode: DoomMode {
@@ -56,15 +54,10 @@ struct OnboardingView: View {
             """)
 
             TerminalButton(title: "CONTINUE", color: mode.primaryColor, isProminent: true) {
-                guard !isTransitioning else { return }
-                isTransitioning = true
-                DispatchQueue.main.async {
-                    step = 1
-                    isTransitioning = false
-                }
+                advance(to: 1)
             }
-            .disabled(isTransitioning)
-            .opacity(isTransitioning ? 0.55 : 1)
+            .disabled(isProcessing)
+            .opacity(isProcessing ? 0.55 : 1)
         }
     }
 
@@ -72,8 +65,6 @@ struct OnboardingView: View {
         VStack(spacing: 9) {
             TerminalDateTimePicker(
                 selectedDate: $selectedDate,
-                selectedHour: $selectedHour,
-                selectedMinute: $selectedMinute,
                 mode: mode,
                 minimumDate: minimumDate
             )
@@ -86,32 +77,18 @@ struct OnboardingView: View {
             }
 
             TerminalButton(title: "START COUNTDOWN", color: mode.primaryColor, isProminent: true) {
-                guard !isTransitioning else { return }
-                let targetDate = combinedSelectedDate()
-                guard viewModel.isFutureDate(targetDate) else {
+                guard !isProcessing else { return }
+                guard viewModel.isFutureDate(selectedDate) else {
                     showsDateWarning = true
                     viewModel.noteInvalidDateAttempt()
                     return
                 }
 
                 showsDateWarning = false
-                isTransitioning = true
-                DispatchQueue.main.async {
-                    step = 2
-                    isTransitioning = false
-                }
+                advance(to: 2)
             }
-            .disabled(isTransitioning)
-            .opacity(isTransitioning ? 0.55 : 1)
-        }
-        .onChange(of: selectedDate) { _, _ in
-            viewModel.notePickerValueChanged()
-        }
-        .onChange(of: selectedHour) { _, _ in
-            viewModel.notePickerValueChanged()
-        }
-        .onChange(of: selectedMinute) { _, _ in
-            viewModel.notePickerValueChanged()
+            .disabled(isProcessing)
+            .opacity(isProcessing ? 0.55 : 1)
         }
     }
 
@@ -122,28 +99,18 @@ struct OnboardingView: View {
             bodyText("Do you want to be able to edit your Doomsday date and time later?")
 
             TerminalButton(title: "YES, ALLOW EDITING", color: mode.primaryColor, isProminent: true) {
-                guard !isTransitioning else { return }
-                isTransitioning = true
-                DispatchQueue.main.async {
-                    canEdit = true
-                    step = 3
-                    isTransitioning = false
-                }
+                canEdit = true
+                advance(to: 3)
             }
-            .disabled(isTransitioning)
-            .opacity(isTransitioning ? 0.55 : 1)
+            .disabled(isProcessing)
+            .opacity(isProcessing ? 0.55 : 1)
 
             TerminalButton(title: "NO, LOCK IT", color: mode.primaryColor) {
-                guard !isTransitioning else { return }
-                isTransitioning = true
-                DispatchQueue.main.async {
-                    canEdit = false
-                    step = 3
-                    isTransitioning = false
-                }
+                canEdit = false
+                advance(to: 3)
             }
-            .disabled(isTransitioning)
-            .opacity(isTransitioning ? 0.55 : 1)
+            .disabled(isProcessing)
+            .opacity(isProcessing ? 0.55 : 1)
         }
     }
 
@@ -154,26 +121,24 @@ struct OnboardingView: View {
             bodyText("Your fictional countdown is ready.")
 
             TerminalButton(title: "START", color: mode.primaryColor, isProminent: true) {
-                guard !isTransitioning else { return }
-                isTransitioning = true
-                let targetDate = combinedSelectedDate()
-                DispatchQueue.main.async {
-                    if !viewModel.completeOnboarding(targetDate: targetDate, canEdit: canEdit) {
-                        isTransitioning = false
-                    }
+                guard !isProcessing else { return }
+                isProcessing = true
+                if !viewModel.completeOnboarding(targetDate: selectedDate, canEdit: canEdit) {
+                    isProcessing = false
                 }
             }
-            .disabled(isTransitioning)
-            .opacity(isTransitioning ? 0.55 : 1)
+            .disabled(isProcessing)
+            .opacity(isProcessing ? 0.55 : 1)
         }
     }
 
-    private func combinedSelectedDate() -> Date {
-        var components = Calendar.current.dateComponents([.year, .month, .day], from: selectedDate)
-        components.hour = selectedHour
-        components.minute = selectedMinute
-        components.second = 0
-        return Calendar.current.date(from: components) ?? selectedDate
+    private func advance(to nextStep: Int) {
+        guard !isProcessing else { return }
+        isProcessing = true
+        step = nextStep
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            isProcessing = false
+        }
     }
 
     private func title(_ text: String) -> some View {

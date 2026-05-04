@@ -5,10 +5,6 @@ struct HapticsService {
         play(.click)
     }
 
-    func playPickerValueChanged() {
-        play(.click)
-    }
-
     func playPresetDateSet() {
         play(.success)
     }

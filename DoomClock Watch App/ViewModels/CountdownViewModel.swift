@@ -18,7 +18,6 @@ final class CountdownViewModel: ObservableObject {
     private let persistenceService: PersistenceService
     private let hapticsService: HapticsService
     private var timer: Timer?
-    private var lastPickerHapticDate: Date?
 
     init(
         persistenceService: PersistenceService? = nil,
@@ -156,17 +155,6 @@ final class CountdownViewModel: ObservableObject {
 
     func noteInvalidDateAttempt() {
         hapticsService.playInvalidDateAttempt()
-    }
-
-    func notePickerValueChanged() {
-        let currentDate = Date()
-        if let lastPickerHapticDate,
-           currentDate.timeIntervalSince(lastPickerHapticDate) < 0.08 {
-            return
-        }
-
-        lastPickerHapticDate = currentDate
-        hapticsService.playPickerValueChanged()
     }
 
     func isFutureDate(_ date: Date) -> Bool {
