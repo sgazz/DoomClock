@@ -3,10 +3,11 @@ import SwiftUI
 struct EditDoomsdayView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var viewModel: CountdownViewModel
-    @State private var selectedDate = Date().addingTimeInterval(60 * 60)
+    @State private var selectedDay = Date()
+    @State private var selectedHour = Calendar.current.component(.hour, from: Date().addingTimeInterval(5 * 60))
+    @State private var selectedMinute = Calendar.current.component(.minute, from: Date().addingTimeInterval(5 * 60))
     @State private var showsDateWarning = false
     @State private var isProcessing = false
-    @State private var minimumDate = Date()
 
     private var mode: DoomMode {
         viewModel.settings.mode
@@ -20,9 +21,10 @@ struct EditDoomsdayView: View {
             ScrollView {
                 VStack(spacing: 9) {
                     TerminalDateTimePicker(
-                        selectedDate: $selectedDate,
-                        mode: mode,
-                        minimumDate: minimumDate
+                        selectedDay: $selectedDay,
+                        selectedHour: $selectedHour,
+                        selectedMinute: $selectedMinute,
+                        mode: mode
                     )
 
                     if showsDateWarning {
@@ -35,7 +37,8 @@ struct EditDoomsdayView: View {
                     TerminalButton(title: "START COUNTDOWN", color: mode.primaryColor, isProminent: true) {
                         guard !isProcessing else { return }
                         isProcessing = true
-                        guard viewModel.updateTargetDate(selectedDate) else {
+                        let finalDate = selectedDoomsdayDate()
+                        guard viewModel.updateTargetDate(finalDate) else {
                             showsDateWarning = true
                             isProcessing = false
                             return
@@ -57,7 +60,13 @@ struct EditDoomsdayView: View {
         .onAppear {
             let fallbackDate = Date().addingTimeInterval(60 * 60)
             let targetDate = max(viewModel.settings.targetDate ?? fallbackDate, fallbackDate)
-            selectedDate = targetDate
+            selectedDay = targetDate
+            selectedHour = Calendar.current.component(.hour, from: targetDate)
+            selectedMinute = Calendar.current.component(.minute, from: targetDate)
         }
+    }
+
+    private func selectedDoomsdayDate() -> Date {
+        DateTimeHelper.combine(day: selectedDay, hour: selectedHour, minute: selectedMinute)
     }
 }
