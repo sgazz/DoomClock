@@ -1,19 +1,7 @@
 import SwiftUI
 
-enum DateTimeHelper {
-    static func combine(day: Date, hour: Int, minute: Int) -> Date {
-        var components = Calendar.current.dateComponents([.year, .month, .day], from: day)
-        components.hour = hour
-        components.minute = minute
-        components.second = 0
-        return Calendar.current.date(from: components) ?? day
-    }
-}
-
 struct TerminalDateTimePicker: View {
-    @Binding var selectedDay: Date
-    @Binding var selectedHour: Int
-    @Binding var selectedMinute: Int
+    @Binding var selectedDate: Date
     let mode: DoomMode
 
     var body: some View {
@@ -21,12 +9,7 @@ struct TerminalDateTimePicker: View {
             header
             previewCard
             dateSection
-            timeSection
         }
-    }
-
-    private var combinedDate: Date {
-        DateTimeHelper.combine(day: selectedDay, hour: selectedHour, minute: selectedMinute)
     }
 
     private var header: some View {
@@ -55,19 +38,19 @@ struct TerminalDateTimePicker: View {
                 .lineLimit(1)
 
             VStack(spacing: 0) {
-                Text(formattedTargetDayMonth(combinedDate))
+                Text(formattedTargetDayMonth(selectedDate))
                     .font(.system(size: 13, weight: .bold, design: .monospaced))
                     .foregroundStyle(mode.accentColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
 
-                Text(formattedTargetYear(combinedDate))
+                Text(formattedTargetYear(selectedDate))
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                     .foregroundStyle(mode.accentColor.opacity(0.9))
                     .lineLimit(1)
             }
 
-            Text(formattedTargetTime(combinedDate))
+            Text(formattedTargetTime(selectedDate))
                 .font(.system(size: 13, weight: .bold, design: .monospaced))
                 .foregroundStyle(mode.accentColor.opacity(0.92))
                 .lineLimit(1)
@@ -87,16 +70,16 @@ struct TerminalDateTimePicker: View {
 
     private var dateSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("DATE")
+            Text("DATE & TIME")
                 .font(.system(size: 8, weight: .semibold, design: .monospaced))
                 .foregroundStyle(mode.primaryColor.opacity(0.72))
                 .padding(.leading, 3)
 
             DatePicker(
-                "",
-                selection: $selectedDay,
+                "Doomsday",
+                selection: $selectedDate,
                 in: Date()...,
-                displayedComponents: [.date]
+                displayedComponents: [.date, .hourAndMinute]
             )
             .labelsHidden()
             .tint(mode.primaryColor)
@@ -109,39 +92,6 @@ struct TerminalDateTimePicker: View {
             .opacity(0.94)
 
             helperText
-        }
-    }
-
-    private var timeSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("TIME")
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                .foregroundStyle(mode.primaryColor.opacity(0.72))
-                .padding(.leading, 3)
-
-            HStack(spacing: 8) {
-                wheelColumn(title: "HOUR") {
-                    Picker("Hour", selection: $selectedHour) {
-                        ForEach(0..<24, id: \.self) { hour in
-                            Text(String(format: "%02d", hour))
-                                .font(.system(size: 18, weight: .bold, design: .monospaced))
-                                .tag(hour)
-                        }
-                    }
-                    .pickerStyle(.wheel)
-                }
-
-                wheelColumn(title: "MIN") {
-                    Picker("Minute", selection: $selectedMinute) {
-                        ForEach(0..<60, id: \.self) { minute in
-                            Text(String(format: "%02d", minute))
-                                .font(.system(size: 18, weight: .bold, design: .monospaced))
-                                .tag(minute)
-                        }
-                    }
-                    .pickerStyle(.wheel)
-                }
-            }
         }
     }
 
@@ -160,28 +110,6 @@ struct TerminalDateTimePicker: View {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .stroke(mode.primaryColor.opacity(0.5), lineWidth: 1)
             )
-    }
-
-    private func wheelColumn<Content: View>(
-        title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(spacing: 3) {
-            Text(title)
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundStyle(mode.primaryColor.opacity(0.68))
-                .lineLimit(1)
-
-            content()
-                .tint(mode.primaryColor)
-                .frame(maxWidth: .infinity)
-                .frame(height: 66)
-                .clipped()
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 5)
-        .padding(.horizontal, 4)
-        .background(pickerBackground)
     }
 
     private func formattedTargetDayMonth(_ date: Date) -> String {

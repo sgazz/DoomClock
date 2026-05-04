@@ -3,18 +3,14 @@ import SwiftUI
 struct OnboardingView: View {
     @EnvironmentObject private var viewModel: CountdownViewModel
     @State private var step = 0
-    @State private var selectedDay: Date
-    @State private var selectedHour: Int
-    @State private var selectedMinute: Int
+    @State private var selectedDate: Date
     @State private var canEdit = true
     @State private var showsDateWarning = false
     @State private var isProcessing = false
 
     init() {
         let initialDate = Date().addingTimeInterval(5 * 60)
-        _selectedDay = State(initialValue: initialDate)
-        _selectedHour = State(initialValue: Calendar.current.component(.hour, from: initialDate))
-        _selectedMinute = State(initialValue: Calendar.current.component(.minute, from: initialDate))
+        _selectedDate = State(initialValue: initialDate)
     }
 
     private var mode: DoomMode {
@@ -72,9 +68,7 @@ struct OnboardingView: View {
     private var dateStep: some View {
         VStack(spacing: 9) {
             TerminalDateTimePicker(
-                selectedDay: $selectedDay,
-                selectedHour: $selectedHour,
-                selectedMinute: $selectedMinute,
+                selectedDate: $selectedDate,
                 mode: mode
             )
 
@@ -87,8 +81,7 @@ struct OnboardingView: View {
 
             TerminalButton(title: "START COUNTDOWN", color: mode.primaryColor, isProminent: true) {
                 guard !isProcessing else { return }
-                let finalDate = selectedDoomsdayDate()
-                guard viewModel.isFutureDate(finalDate) else {
+                guard viewModel.isFutureDate(selectedDate) else {
                     showsDateWarning = true
                     viewModel.noteInvalidDateAttempt()
                     return
@@ -133,18 +126,13 @@ struct OnboardingView: View {
             TerminalButton(title: "START", color: mode.primaryColor, isProminent: true) {
                 guard !isProcessing else { return }
                 isProcessing = true
-                let finalDate = selectedDoomsdayDate()
-                if !viewModel.completeOnboarding(targetDate: finalDate, canEdit: canEdit) {
+                if !viewModel.completeOnboarding(targetDate: selectedDate, canEdit: canEdit) {
                     isProcessing = false
                 }
             }
             .disabled(isProcessing)
             .opacity(isProcessing ? 0.55 : 1)
         }
-    }
-
-    private func selectedDoomsdayDate() -> Date {
-        DateTimeHelper.combine(day: selectedDay, hour: selectedHour, minute: selectedMinute)
     }
 
     private func advance(to nextStep: Int) {

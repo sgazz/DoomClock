@@ -3,9 +3,7 @@ import SwiftUI
 struct EditDoomsdayView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var viewModel: CountdownViewModel
-    @State private var selectedDay = Date()
-    @State private var selectedHour = Calendar.current.component(.hour, from: Date().addingTimeInterval(5 * 60))
-    @State private var selectedMinute = Calendar.current.component(.minute, from: Date().addingTimeInterval(5 * 60))
+    @State private var selectedDate = Date().addingTimeInterval(5 * 60)
     @State private var showsDateWarning = false
     @State private var isProcessing = false
 
@@ -21,9 +19,7 @@ struct EditDoomsdayView: View {
             ScrollView {
                 VStack(spacing: 9) {
                     TerminalDateTimePicker(
-                        selectedDay: $selectedDay,
-                        selectedHour: $selectedHour,
-                        selectedMinute: $selectedMinute,
+                        selectedDate: $selectedDate,
                         mode: mode
                     )
 
@@ -37,8 +33,7 @@ struct EditDoomsdayView: View {
                     TerminalButton(title: "START COUNTDOWN", color: mode.primaryColor, isProminent: true) {
                         guard !isProcessing else { return }
                         isProcessing = true
-                        let finalDate = selectedDoomsdayDate()
-                        guard viewModel.updateTargetDate(finalDate) else {
+                        guard viewModel.updateTargetDate(selectedDate) else {
                             showsDateWarning = true
                             isProcessing = false
                             return
@@ -60,13 +55,7 @@ struct EditDoomsdayView: View {
         .onAppear {
             let fallbackDate = Date().addingTimeInterval(60 * 60)
             let targetDate = max(viewModel.settings.targetDate ?? fallbackDate, fallbackDate)
-            selectedDay = targetDate
-            selectedHour = Calendar.current.component(.hour, from: targetDate)
-            selectedMinute = Calendar.current.component(.minute, from: targetDate)
+            selectedDate = targetDate
         }
-    }
-
-    private func selectedDoomsdayDate() -> Date {
-        DateTimeHelper.combine(day: selectedDay, hour: selectedHour, minute: selectedMinute)
     }
 }
