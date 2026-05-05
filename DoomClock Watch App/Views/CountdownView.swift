@@ -9,28 +9,26 @@ struct CountdownView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.07, green: 0.08, blue: 0.06)
+            DoomClockUI.background
                 .ignoresSafeArea()
-
-            ScrollView {
-                VStack(spacing: 15) {
-                    header
-
-                    if viewModel.isExpired {
-                        expiredContent
-                    } else {
-                        countdownContent
-                    }
-
-                    controls
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 10)
-            }
+                .allowsHitTesting(false)
 
             ScanlineOverlay(color: mode.primaryColor)
+
+            VStack(spacing: 8) {
+                header
+
+                if viewModel.isExpired {
+                    expiredContent
+                } else {
+                    countdownContent
+                }
+
+                controls
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
         }
-        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             viewModel.startTimer()
         }
@@ -42,13 +40,14 @@ struct CountdownView: View {
     private var header: some View {
         VStack(spacing: 5) {
             Text("D-DAY IN")
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(mode.primaryColor.opacity(0.75))
+                .font(.system(size: 17, weight: .semibold, design: .monospaced))
+                .foregroundStyle(mode.primaryColor)
                 .lineLimit(1)
+                .terminalFlicker()
 
             Text(mode.statusText)
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .foregroundStyle(mode.accentColor.opacity(0.82))
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(mode.accentColor.opacity(0.78))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
@@ -57,9 +56,9 @@ struct CountdownView: View {
     private var countdownContent: some View {
         let remaining = viewModel.remainingComponents
 
-        return VStack(spacing: 12) {
+        return VStack(spacing: 6) {
             countdownCard(for: remaining)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             .padding(.horizontal, 8)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -68,10 +67,11 @@ struct CountdownView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(mode.primaryColor.opacity(0.3), lineWidth: 1)
+                    .allowsHitTesting(false)
             )
 
             Text(targetDateText)
-                .font(.system(size: 8, weight: .medium, design: .monospaced))
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
                 .foregroundStyle(mode.primaryColor.opacity(0.55))
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
@@ -101,12 +101,13 @@ struct CountdownView: View {
                     .frame(maxWidth: .infinity)
                 CountdownNumberView(value: remaining.minutes, label: "m", color: mode.primaryColor)
                     .frame(maxWidth: .infinity)
-                CountdownNumberView(value: remaining.seconds, label: "s", color: mode.primaryColor)
+                CountdownNumberView(value: remaining.seconds, label: "s", color: mode.primaryColor, animatesTick: true)
                     .frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity, minHeight: 28)
         }
         .frame(maxWidth: .infinity)
+        .terminalFlicker()
     }
 
     private var expiredContent: some View {
@@ -130,11 +131,9 @@ struct CountdownView: View {
                 NavigationLink {
                     EditDoomsdayView()
                 } label: {
-                    controlLabel("SET DOOMSDAY")
+                    primaryControlLabel("SET DOOMSDAY")
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.black)
-                .background(buttonBackground(fillOpacity: 0.92, strokeOpacity: 0.95))
             }
 
             HStack(spacing: 7) {
@@ -142,49 +141,58 @@ struct CountdownView: View {
                     NavigationLink {
                         EditDoomsdayView()
                     } label: {
-                        controlLabel("EDIT")
+                        primaryControlLabel("EDIT")
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color.black)
-                    .background(buttonBackground(fillOpacity: 0.92, strokeOpacity: 0.95))
                 }
 
                 NavigationLink {
                     DoomModeView()
                 } label: {
-                    controlLabel("MODE")
+                    secondaryControlLabel("MODE", opacity: 1)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(mode.primaryColor)
-                .background(buttonBackground(fillOpacity: 0.08, strokeOpacity: 0.52))
 
                 NavigationLink {
                     SettingsAboutView()
                 } label: {
-                    controlLabel("INFO")
+                    secondaryControlLabel("INFO", opacity: 0.62)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(mode.primaryColor.opacity(0.62))
-                .background(buttonBackground(fillOpacity: 0.04, strokeOpacity: 0.28))
             }
         }
     }
 
-    private func controlLabel(_ text: String) -> some View {
+    private func primaryControlLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(.caption2, design: .monospaced).weight(.semibold))
+            .font(.system(size: 12, weight: .bold, design: .monospaced))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
+            .foregroundStyle(Color.black)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .frame(minHeight: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(mode.primaryColor)
+            )
     }
 
-    private func buttonBackground(fillOpacity: Double, strokeOpacity: Double) -> some View {
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .fill(mode.primaryColor.opacity(fillOpacity))
+    private func secondaryControlLabel(_ text: String, opacity: Double) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .bold, design: .monospaced))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .foregroundStyle(mode.primaryColor.opacity(opacity))
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(mode.primaryColor.opacity(opacity * 0.08))
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(mode.primaryColor.opacity(strokeOpacity), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(mode.primaryColor.opacity(opacity * 0.5), lineWidth: 1)
+                    .allowsHitTesting(false)
             )
     }
 

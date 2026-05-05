@@ -17,6 +17,10 @@ struct HapticsService {
         play(.success)
     }
 
+    func playTargetConfirmed() {
+        play(.success)
+    }
+
     func playEditSaved() {
         play(.success)
     }

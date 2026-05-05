@@ -5,7 +5,7 @@ struct RootView: View {
 
     var body: some View {
         NavigationStack {
-            if viewModel.hasCompletedOnboarding {
+            if viewModel.settings.hasCompletedOnboarding {
                 CountdownView()
             } else {
                 OnboardingView()

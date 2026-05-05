@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct SettingsAboutView: View {
-    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var viewModel: CountdownViewModel
     @State private var isTransitioning = false
 
@@ -11,47 +10,33 @@ struct SettingsAboutView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.07, green: 0.08, blue: 0.06)
+            DoomClockUI.background
                 .ignoresSafeArea()
-
-            ScrollView {
-                VStack(spacing: 18) {
-                    Text("ABOUT")
-                        .font(.system(size: 14, weight: .bold, design: .monospaced))
-                        .foregroundStyle(mode.primaryColor)
-                        .lineLimit(1)
-
-                    Text("DoomClock is a fictional personal countdown. It is not a prediction or warning system.")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(mode.primaryColor.opacity(0.75))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    TerminalButton(title: "RESET COUNTDOWN", color: mode.primaryColor) {
-                        guard !isTransitioning else { return }
-                        viewModel.resetCountdown()
-                    }
-                    .disabled(isTransitioning)
-                    .opacity(isTransitioning ? 0.55 : 1)
-
-                    TerminalButton(title: "RESET ONBOARDING", color: mode.primaryColor, isProminent: true) {
-                        guard !isTransitioning else { return }
-                        isTransitioning = true
-                        dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                            viewModel.resetOnboarding()
-                        }
-                    }
-                    .disabled(isTransitioning)
-                    .opacity(isTransitioning ? 0.55 : 1)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 12)
-            }
+                .allowsHitTesting(false)
 
             ScanlineOverlay(color: mode.primaryColor)
+
+            VStack(spacing: 8) {
+                DoomClockUI.title("ABOUT", color: mode.primaryColor)
+                DoomClockUI.primaryText("Fictional countdown only.", color: mode.primaryColor)
+
+                DoomClockUI.primaryButton(title: "RESET COUNTDOWN", color: mode.primaryColor, isDisabled: isTransitioning) {
+                    guard !isTransitioning else { return }
+                    isTransitioning = true
+                    viewModel.resetCountdown()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        isTransitioning = false
+                    }
+                }
+
+                DoomClockUI.secondaryButton(title: "RESET ONBOARDING", color: mode.primaryColor, isDisabled: isTransitioning) {
+                    guard !isTransitioning else { return }
+                    isTransitioning = true
+                    viewModel.resetOnboarding()
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

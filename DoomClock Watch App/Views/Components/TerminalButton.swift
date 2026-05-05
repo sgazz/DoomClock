@@ -23,6 +23,7 @@ struct TerminalButton: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .stroke(color.opacity(isSelected ? 0.95 : 0.55), lineWidth: 1)
+                        .allowsHitTesting(false)
                 )
         }
         .buttonStyle(.plain)

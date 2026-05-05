@@ -1,135 +1,155 @@
 import SwiftUI
 
+enum SelectionStep {
+    case date
+    case time
+}
+
 struct TerminalDateTimePicker: View {
     @Binding var selectedDate: Date
+    @Binding var selectedHour: Int
+    @Binding var selectedMinute: Int
+    let step: SelectionStep
     let mode: DoomMode
 
     var body: some View {
-        VStack(spacing: 10) {
-            header
-            previewCard
-            dateSection
+        VStack(spacing: 12) {
+            switch step {
+            case .date:
+                datePicker
+            case .time:
+                timePickers
+            }
         }
     }
 
-    private var header: some View {
-        VStack(spacing: 3) {
-            Text("SET DOOMSDAY")
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundStyle(mode.primaryColor)
-                .multilineTextAlignment(.center)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-
-            Text("Choose fictional target date & time")
-                .font(.system(size: 8, weight: .medium, design: .monospaced))
-                .foregroundStyle(mode.primaryColor.opacity(0.68))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.76)
-        }
-    }
-
-    private var previewCard: some View {
-        VStack(spacing: 4) {
-            Text("TARGET LOCKED ON")
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                .foregroundStyle(mode.primaryColor.opacity(0.62))
-                .lineLimit(1)
-
-            VStack(spacing: 0) {
-                Text(formattedTargetDayMonth(selectedDate))
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundStyle(mode.accentColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-
-                Text(formattedTargetYear(selectedDate))
+    private var datePicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("CHOOSE DATE")
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
-                    .foregroundStyle(mode.accentColor.opacity(0.9))
+                    .foregroundStyle(mode.primaryColor)
+
+                Text("DAY / MONTH / YEAR")
+                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor.opacity(0.56))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
 
-            Text(formattedTargetTime(selectedDate))
-                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                .foregroundStyle(mode.accentColor.opacity(0.92))
-                .lineLimit(1)
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.black.opacity(0.22))
+                    .allowsHitTesting(false)
+
+                DatePicker(
+                    "",
+                    selection: dateOnlyBinding,
+                    in: Calendar.current.startOfDay(for: Date())...,
+                    displayedComponents: [.date]
+                )
+                .labelsHidden()
+                .datePickerStyle(.wheel)
+                .frame(maxWidth: .infinity)
+                .frame(height: 82)
+                .clipped()
+            }
+            .frame(height: 86)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(mode.primaryColor.opacity(0.48), lineWidth: 1)
+                    .allowsHitTesting(false)
+            )
+            .overlay(
+                Rectangle()
+                    .stroke(mode.primaryColor.opacity(0.18), lineWidth: 1)
+                    .frame(height: 24)
+                    .allowsHitTesting(false)
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 7)
-        .padding(.horizontal, 8)
+        .padding(8)
         .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.black.opacity(0.24))
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.black.opacity(0.16))
+                .allowsHitTesting(false)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(mode.primaryColor.opacity(0.35), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(mode.primaryColor.opacity(0.34), lineWidth: 1)
+                .allowsHitTesting(false)
         )
     }
 
-    private var dateSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("DATE & TIME")
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
+    private var timePickers: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("HOUR / MIN")
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundStyle(mode.primaryColor)
+
+            VStack(spacing: 6) {
+                HStack(spacing: 18) {
+                    Text("HOUR")
+                    Text("MIN")
+                }
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
                 .foregroundStyle(mode.primaryColor.opacity(0.72))
-                .padding(.leading, 3)
 
-            DatePicker(
-                "Doomsday",
-                selection: $selectedDate,
-                in: Date()...,
-                displayedComponents: [.date, .hourAndMinute]
+                HStack(spacing: 8) {
+                    Picker("Hour", selection: $selectedHour) {
+                        ForEach(0..<24, id: \.self) { hour in
+                            Text(String(format: "%02d", hour))
+                                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                .monospacedDigit()
+                                .tag(hour)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(maxWidth: .infinity)
+
+                    Picker("Minute", selection: $selectedMinute) {
+                        ForEach(0..<60, id: \.self) { minute in
+                            Text(String(format: "%02d", minute))
+                                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                .monospacedDigit()
+                                .tag(minute)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(maxWidth: .infinity)
+                }
+                .frame(height: 78)
+            }
+            .frame(height: 104)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.black.opacity(0.22))
+                    .allowsHitTesting(false)
             )
-            .labelsHidden()
-            .tint(mode.primaryColor)
-            .controlSize(.large)
-            .frame(maxWidth: .infinity)
-            .frame(height: 58)
-            .padding(.vertical, 5)
-            .padding(.horizontal, 6)
-            .background(pickerBackground)
-            .opacity(0.94)
-
-            helperText
-        }
-    }
-
-    private var helperText: some View {
-        Text("Fictional countdown only.")
-            .font(.system(size: 8, weight: .medium, design: .monospaced))
-            .foregroundStyle(mode.primaryColor.opacity(0.5))
-            .multilineTextAlignment(.center)
-            .lineLimit(2)
-    }
-
-    private var pickerBackground: some View {
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .fill(mode.primaryColor.opacity(0.08))
             .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(mode.primaryColor.opacity(0.5), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(mode.primaryColor.opacity(0.48), lineWidth: 1)
+                    .allowsHitTesting(false)
             )
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.black.opacity(0.16))
+                .allowsHitTesting(false)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(mode.primaryColor.opacity(0.34), lineWidth: 1)
+                .allowsHitTesting(false)
+        )
     }
 
-    private func formattedTargetDayMonth(_ date: Date) -> String {
-        let components = Calendar.current.dateComponents([.day, .month, .year], from: date)
-        let day = components.day ?? 1
-        let month = monthSymbols[max(min((components.month ?? 1) - 1, 11), 0)]
-        return String(format: "%02d %@", day, month)
-    }
-
-    private func formattedTargetYear(_ date: Date) -> String {
-        let year = Calendar.current.component(.year, from: date)
-        return String(format: "%04d", year)
-    }
-
-    private func formattedTargetTime(_ date: Date) -> String {
-        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
-        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
-    }
-
-    private var monthSymbols: [String] {
-        ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+    private var dateOnlyBinding: Binding<Date> {
+        Binding(
+            get: { selectedDate },
+            set: { selectedDate = Calendar.current.startOfDay(for: $0) }
+        )
     }
 }

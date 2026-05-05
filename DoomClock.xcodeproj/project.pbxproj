@@ -160,7 +160,7 @@
 					DC0000010000000000000010 = {
 						CreatedOnToolsVersion = 26.4.1;
 						SystemCapabilities = {
-							"com.apple.ApplicationGroups.iOS" = {
+							com.apple.ApplicationGroups.iOS = {
 								enabled = 1;
 							};
 						};

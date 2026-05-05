@@ -157,6 +157,10 @@ final class CountdownViewModel: ObservableObject {
         hapticsService.playInvalidDateAttempt()
     }
 
+    func noteTargetConfirmed() {
+        hapticsService.playTargetConfirmed()
+    }
+
     func isFutureDate(_ date: Date) -> Bool {
         date > Date()
     }
