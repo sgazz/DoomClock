@@ -36,8 +36,8 @@ struct DoomModeView: View {
     }
 
     private var selectionContent: some View {
-        VStack(spacing: 8) {
-            DoomClockUI.title("THREAT MODE", color: currentMode.primaryColor)
+        VStack(spacing: 10) {
+            DoomClockUI.title("THREAT LEVEL", color: currentMode.primaryColor)
 
             VStack(spacing: 8) {
                 VStack(spacing: 7) {
@@ -45,7 +45,7 @@ struct DoomModeView: View {
                         Button {
                             select(mode)
                         } label: {
-                            Text(mode.title)
+                            Text(mode.threatDisplayTitle)
                                 .font(.system(size: 12, weight: .bold, design: .monospaced))
                                 .foregroundStyle(mode == currentMode ? Color.black : mode.primaryColor)
                                 .lineLimit(1)
@@ -79,19 +79,43 @@ struct DoomModeView: View {
     }
 
     private func resultContent(for mode: DoomMode) -> some View {
-        VStack(spacing: 12) {
-            Spacer(minLength: 0)
+        ScrollView {
+            VStack(spacing: 18) {
+                Text(mode.threatDisplayTitle)
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.72)
+                    .terminalFlicker()
 
-            DoomClockUI.title(mode.title, color: mode.primaryColor)
-            DoomClockUI.primaryText(resultBody(for: mode), color: mode.primaryColor)
+                Text(mode.threatDetailBody)
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor.opacity(0.82))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity)
 
-            DoomClockUI.primaryButton(title: "DONE", color: mode.primaryColor, isDisabled: isProcessing) {
-                guard !isProcessing else { return }
-                isProcessing = true
-                dismiss()
+                Text("""
+                The teapot is a metaphor.
+                It is also an actual teapot.
+                """)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor.opacity(0.58))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity)
+
+                DoomClockUI.primaryButton(title: "BACK", color: mode.primaryColor, isDisabled: isProcessing) {
+                    guard !isProcessing else { return }
+                    isProcessing = true
+                    dismiss()
+                }
             }
-
-            Spacer(minLength: 0)
+            .padding(.horizontal, 16)
+            .padding(.top, 24)
+            .padding(.bottom, 24)
         }
     }
 
@@ -128,19 +152,6 @@ struct DoomModeView: View {
         isThreatPulsing = false
         withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
             isThreatPulsing = true
-        }
-    }
-
-    private func resultBody(for mode: DoomMode) -> String {
-        switch mode {
-        case .calm:
-            "All is fine.\nProbably."
-        case .suspicious:
-            "Something feels off."
-        case .critical:
-            "This is not ideal."
-        case .armageddon:
-            "Well...\nhere we go."
         }
     }
 }

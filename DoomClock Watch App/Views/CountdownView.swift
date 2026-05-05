@@ -15,7 +15,7 @@ struct CountdownView: View {
 
             ScanlineOverlay(color: mode.primaryColor)
 
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 header
 
                 if viewModel.isExpired {
@@ -38,19 +38,11 @@ struct CountdownView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 5) {
-            Text("D-DAY IN")
-                .font(.system(size: 17, weight: .semibold, design: .monospaced))
-                .foregroundStyle(mode.primaryColor)
-                .lineLimit(1)
-                .terminalFlicker()
-
-            Text(mode.statusText)
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundStyle(mode.accentColor.opacity(0.78))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
+        Text("THE END IN")
+            .font(.system(size: 17, weight: .semibold, design: .monospaced))
+            .foregroundStyle(mode.primaryColor)
+            .lineLimit(1)
+            .terminalFlicker()
     }
 
     private var countdownContent: some View {
@@ -156,7 +148,7 @@ struct CountdownView: View {
                 NavigationLink {
                     SettingsAboutView()
                 } label: {
-                    secondaryControlLabel("INFO", opacity: 0.62)
+                    secondaryControlLabel("INFO", opacity: 1)
                 }
                 .buttonStyle(.plain)
             }

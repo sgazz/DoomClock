@@ -85,9 +85,7 @@ struct OnboardingView: View {
                 }
 
             case .time:
-                DoomClockUI.title("SET THE TIME", color: mode.primaryColor)
-                DoomClockUI.primaryText("Choose the moment.", color: mode.primaryColor)
-                dateTimePicker(for: .time)
+                compactTimePicker
                 primaryButton(title: "NEXT: CONFIRM") {
                     guard !isProcessing else { return }
                     showsDateWarning = false
@@ -130,6 +128,62 @@ struct OnboardingView: View {
                     step = .initializedIntro
                 }
             }
+        }
+    }
+
+    private var compactTimePicker: some View {
+        VStack(spacing: 6) {
+            Text("SET TIME")
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundStyle(mode.primaryColor)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+
+            Text("HOUR / MIN")
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundStyle(mode.primaryColor.opacity(0.58))
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            HStack(spacing: 8) {
+                Picker("Hour", selection: $selectedHour) {
+                    ForEach(0..<24, id: \.self) { hour in
+                        Text(String(format: "%02d", hour))
+                            .font(.system(size: 16, weight: .bold, design: .monospaced))
+                            .monospacedDigit()
+                            .tag(hour)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(maxWidth: .infinity)
+                .frame(height: 76)
+                .clipped()
+
+                Picker("Minute", selection: $selectedMinute) {
+                    ForEach(0..<60, id: \.self) { minute in
+                        Text(String(format: "%02d", minute))
+                            .font(.system(size: 16, weight: .bold, design: .monospaced))
+                            .monospacedDigit()
+                            .tag(minute)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(maxWidth: .infinity)
+                .frame(height: 76)
+                .clipped()
+            }
+            .frame(height: 76)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.black.opacity(0.18))
+                    .allowsHitTesting(false)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(mode.primaryColor.opacity(0.42), lineWidth: 1)
+                    .allowsHitTesting(false)
+            )
         }
     }
 
@@ -178,6 +232,14 @@ struct OnboardingView: View {
             firstIntroContent
         } else if step == .dateIntro {
             dateIntroContent
+        } else if step == .timeIntro {
+            timeIntroContent
+        } else if step == .confirmIntro {
+            confirmIntroContent
+        } else if step == .editingIntro {
+            editingIntroContent
+        } else if step == .initializedIntro {
+            initializedIntroContent
         } else {
             standardMicroIntroContent
         }
@@ -287,6 +349,247 @@ struct OnboardingView: View {
         }
     }
 
+    private var timeIntroContent: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                Text("SET THE MOMENT")
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.72)
+                    .terminalFlicker()
+
+                Text("""
+                Choose the exact
+                moment.
+                """)
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor.opacity(0.82))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity)
+
+                Text("↓")
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor)
+                    .opacity(0.5)
+
+                Text("""
+                The universe is
+                about thirteen
+                and a half billion
+                years old
+
+                and it has never
+                asked for your
+                opinion.
+
+                This is your
+                chance to
+                respond.
+                """)
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor.opacity(0.82))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity)
+
+                primaryButton(title: "CONTINUE") {
+                    guard !isProcessing else { return }
+                    continueFromMicroIntro()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 24)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private var confirmIntroContent: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                Text("THIS IS IT")
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.72)
+                    .terminalFlicker()
+
+                VStack(spacing: 4) {
+                    Text(formattedConfirmIntroDate)
+                    Text("at \(formattedConfirmIntroTime)")
+                }
+                .font(.system(size: 18, weight: .bold, design: .monospaced))
+                .foregroundStyle(mode.primaryColor)
+                .multilineTextAlignment(.center)
+                .monospacedDigit()
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+
+                Text("↓")
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor)
+                    .opacity(0.5)
+
+                Text("""
+                It looks official.
+                Even slightly threatening.
+
+                The universe has
+                received the notice
+                and decided to ignore it,
+
+                which is, basically,
+                its usual policy.
+                """)
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor.opacity(0.82))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity)
+
+                primaryButton(title: "CONTINUE") {
+                    guard !isProcessing else { return }
+                    continueFromMicroIntro()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 24)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private var editingIntroContent: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                Text("FREE WILL")
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.72)
+                    .terminalFlicker()
+
+                Text("""
+                You can still
+                change your mind.
+                """)
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor.opacity(0.82))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity)
+
+                Text("↓")
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor)
+                    .opacity(0.5)
+
+                Text("""
+                Free will is
+                an incredibly
+                overrated concept,
+
+                but you still
+                have it.
+
+                You can change
+                the date,
+
+                lock it forever,
+
+                or just walk around
+                feeling like you did
+                something important.
+
+                All three options
+                have roughly
+                the same effect
+                on the universe.
+                """)
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor.opacity(0.82))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity)
+
+                primaryButton(title: "CONTINUE") {
+                    guard !isProcessing else { return }
+                    continueFromMicroIntro()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 24)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private var initializedIntroContent: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                Text("NOTHING CAN STOP IT")
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.72)
+                    .terminalFlicker()
+
+                Text("""
+                Nothing can
+                stop it now.
+
+                Except you.
+                """)
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor.opacity(0.82))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity)
+
+                Text("↓")
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor)
+                    .opacity(0.5)
+
+                Text("""
+                And a random
+                phone reset.
+
+                And bad Wi-Fi
+                at the worst
+                possible moment.
+
+                The universe
+                is full of irony,
+
+                and it is almost
+                always at your
+                expense.
+                """)
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundStyle(mode.primaryColor.opacity(0.82))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity)
+
+                primaryButton(title: "CONTINUE") {
+                    guard !isProcessing else { return }
+                    continueFromMicroIntro()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 24)
+            .padding(.bottom, 24)
+        }
+    }
+
     private var standardMicroIntroContent: some View {
         VStack(spacing: 12) {
             Spacer(minLength: 0)
@@ -314,9 +617,9 @@ struct OnboardingView: View {
         case .confirmIntro:
             "THIS IS IT"
         case .editingIntro:
-            "FINAL DECISION"
+            "FREE WILL"
         case .initializedIntro:
-            "COUNTDOWN READY"
+            "NOTHING CAN STOP IT"
         default:
             ""
         }
@@ -329,13 +632,13 @@ struct OnboardingView: View {
         case .dateIntro:
             "The End doesn’t really use a calendar.\n\nIt just shows up,\nknocks politely,\nand offers tea.\n\nThe date is mostly a formality."
         case .timeIntro:
-            "Pick the exact time.\n\nMake it count."
+            "Choose the exact\nmoment.\n\nThe universe is\nabout thirteen\nand a half billion\nyears old\n\nand it has never\nasked for your\nopinion.\n\nThis is your\nchance to\nrespond."
         case .confirmIntro:
-            "Take one last look.\n\nIt feels important."
+            "\(formattedConfirmIntroDate)\nat \(formattedConfirmIntroTime)\n\nIt looks official.\nEven slightly threatening.\n\nThe universe has\nreceived the notice\nand decided to ignore it,\n\nwhich is, basically,\nits usual policy."
         case .editingIntro:
-            "You can still change it.\n\nOr commit to the chaos."
+            "You can still\nchange your mind.\n\nFree will is\nan incredibly\noverrated concept,\n\nbut you still\nhave it.\n\nYou can change\nthe date,\n\nlock it forever,\n\nor just walk around\nfeeling like you did\nsomething important.\n\nAll three options\nhave roughly\nthe same effect\non the universe."
         case .initializedIntro:
-            "Everything is set.\n\nNow we wait."
+            "Nothing can\nstop it now.\n\nExcept you.\n\nAnd a random\nphone reset.\n\nAnd bad Wi-Fi\nat the worst\npossible moment.\n\nThe universe\nis full of irony,\n\nand it is almost\nalways at your\nexpense."
         default:
             ""
         }
@@ -378,6 +681,10 @@ struct OnboardingView: View {
                 .stroke(mode.primaryColor.opacity(isConfirmPulsing ? 0.9 : 0.42), lineWidth: isConfirmPulsing ? 1.5 : 1)
                 .allowsHitTesting(false)
         )
+        .overlay {
+            RetroBurstOverlay()
+                .allowsHitTesting(false)
+        }
         .shadow(color: isConfirmPulsing && !reduceMotion ? mode.primaryColor.opacity(0.25) : .clear, radius: 4)
         .onAppear {
             guard !reduceMotion else { return }
@@ -477,7 +784,22 @@ struct OnboardingView: View {
         Self.dateFormatter.string(from: selectedDate).uppercased()
     }
 
+    private var formattedConfirmIntroDate: String {
+        Self.confirmIntroDateFormatter.string(from: selectedFinalDate() ?? selectedDate)
+    }
+
+    private var formattedConfirmIntroTime: String {
+        String(format: "%02d:%02d", selectedHour, selectedMinute)
+    }
+
     private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "dd MMM yyyy"
+        return formatter
+    }()
+
+    private static let confirmIntroDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "dd MMM yyyy"
