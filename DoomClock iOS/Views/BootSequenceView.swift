@@ -522,6 +522,9 @@ struct BootSequenceView: View {
             .terminalLine("> Verifying symbolic countdown engine...         [ OK ]"),
             .terminalLine("> Establishing secure context...                 [ OK ]"),
             .terminalLine("> Calibrating temporal parameters...             [ OK ]"),
+            .terminalLine("> Verifying certainty module...                  [ FAIL ]"),
+            .terminalLine("> Certainty unavailable."),
+            .terminalLine("> Loading curiosity instead...                   [ OK ]"),
             .terminalLine("> Connecting to The Registry...                  [ OK ]"),
             .terminalLine("> Resolving archive endpoints...                 [ OK ]"),
             .terminalLine("> Mounting encrypted volumes...                  [ OK ]"),
@@ -642,7 +645,7 @@ private struct BootOperatorLoginView: View {
                     .font(.system(size: 15, weight: .bold, design: .monospaced))
                     .foregroundStyle(color)
 
-                Text("The Archive of Human Endings\nand the Lessons They Left Behind")
+                Text("The Archive of Things That End\nand the Lessons They Leave Behind")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .foregroundStyle(color.opacity(0.68))
                     .lineSpacing(4)
@@ -1010,7 +1013,8 @@ private struct TerminalLineView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(status.prefix)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("[ OK ]")
+                    Text(status.marker)
+                        .foregroundStyle(status.marker == "[ FAIL ]" ? color.opacity(0.62) : color.opacity(0.88))
                         .layoutPriority(1)
                 }
             } else {
@@ -1027,11 +1031,14 @@ private struct TerminalLineView: View {
 
     private struct StatusLine {
         let prefix: String
+        let marker: String
 
         static func parse(_ text: String) -> StatusLine? {
-            guard let range = text.range(of: "[ OK ]") else { return nil }
+            let markers = ["[ OK ]", "[ FAIL ]"]
+            guard let marker = markers.first(where: { text.contains($0) }),
+                  let range = text.range(of: marker) else { return nil }
             let prefix = String(text[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
-            return StatusLine(prefix: prefix.isEmpty ? text : prefix + " ")
+            return StatusLine(prefix: prefix.isEmpty ? text : prefix + " ", marker: marker)
         }
     }
 }
