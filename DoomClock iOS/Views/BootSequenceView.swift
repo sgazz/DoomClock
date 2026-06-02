@@ -10,6 +10,18 @@ private enum BootPhase {
     case complete
 }
 
+private enum ShutdownStage {
+    case none
+    case collapse
+    case line
+    case dot
+    case black
+}
+
+private enum DesktopPanel {
+    case settings
+}
+
 private enum PreLoginStep {
     case terminalLine(String)
     case asciiBlock(String)
@@ -68,6 +80,13 @@ struct BootSequenceView: View {
     @State private var enterButtonTitle = "[ ENTER THE ARCHIVE ]"
     @State private var isExitingBoot = false
     @State private var bootExitOpacity: Double = 1
+    @State private var isShuttingDown = false
+    @State private var shutdownStage: ShutdownStage = .none
+    @State private var shutdownCollapseScale: CGFloat = 1
+    @State private var shutdownDotOpacity: Double = 1
+    @State private var activeDesktopPanel: DesktopPanel?
+    @State private var alwaysShowBootSequence = true
+    @State private var enableCRTEffects = true
 
     private let maxIdleArtifacts = 8
 
@@ -101,10 +120,11 @@ struct BootSequenceView: View {
 
             ScanlineOverlay(color: terminalColor)
 
-            CRTScanBeam(color: terminalColor, mode: crtScanMode)
-                .opacity(bootExitOpacity)
+            Group {
+                CRTScanBeam(color: terminalColor, mode: crtScanMode)
+                    .opacity(bootExitOpacity)
 
-            VStack(spacing: 0) {
+                VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 6) {
@@ -158,6 +178,7 @@ struct BootSequenceView: View {
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
+                        guard !isShuttingDown else { return }
                         accelerateCurrentPhase()
                     }
                     .onChange(of: visiblePreLoginCount) { _, _ in
@@ -187,6 +208,17 @@ struct BootSequenceView: View {
             }
 
             BootFlashOverlay(color: terminalColor, trigger: failFlashTrigger)
+            }
+            .scaleEffect(y: shutdownCollapseScale, anchor: .center)
+            .opacity(shutdownStage == .none || shutdownStage == .collapse ? 1 : 0)
+
+            if isShuttingDown {
+                CRTShutdownOverlay(
+                    stage: shutdownStage,
+                    color: terminalColor,
+                    dotOpacity: shutdownDotOpacity
+                )
+            }
         }
         .onAppear {
             loadOperatorIdentity()
@@ -251,9 +283,31 @@ struct BootSequenceView: View {
                             BootFinalRevealView(color: terminalColor)
                         }
 
+                        if activeDesktopPanel == .settings {
+                            BootSettingsPanel(
+                                color: terminalColor,
+                                operatorNameDisplay: settingsOperatorNameDisplay,
+                                purposeDisplay: settingsPurposeDisplay,
+                                reduceMotionActive: reduceMotion,
+                                alwaysShowBootSequence: $alwaysShowBootSequence,
+                                enableCRTEffects: $enableCRTEffects,
+                                onClose: closeSettings,
+                                onClearIdentity: clearIdentityFromSettings,
+                                onToggleHaptic: playSelectionHaptic
+                            )
+                            .zIndex(1)
+                        }
+
                         if showDashboard {
-                            BootDashboardView(color: terminalColor)
-                                .id("boot-dashboard")
+                            BootDashboardView(
+                                color: terminalColor,
+                                isSettingsEnabled: bootPhase == .complete && !isShuttingDown && !isExitingBoot,
+                                isLogoutEnabled: bootPhase == .complete && !isShuttingDown && !isExitingBoot,
+                                onSettings: openSettings,
+                                onLogout: beginShutdown
+                            )
+                            .id("boot-dashboard")
+                            .opacity(activeDesktopPanel == .settings ? 0.52 : 1)
                         }
 
                         if bootPhase == .complete, !idleArtifacts.isEmpty {
@@ -279,8 +333,8 @@ struct BootSequenceView: View {
                                     .background(terminalButtonBackground)
                             }
                             .buttonStyle(.plain)
-                            .modifier(BootEnterArchivePulseModifier(isActive: !isExitingBoot, color: terminalColor))
-                            .disabled(isExitingBoot)
+                            .modifier(BootEnterArchivePulseModifier(isActive: !isExitingBoot && !isShuttingDown, color: terminalColor))
+                            .disabled(isExitingBoot || isShuttingDown)
                         }
                     }
                 }
@@ -292,6 +346,17 @@ struct BootSequenceView: View {
             .padding(.bottom, 8)
         }
         .background(DoomClockUI.background)
+    }
+
+    private var settingsOperatorNameDisplay: String {
+        let trimmed = operatorName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+        return resolvedOperatorName
+    }
+
+    private var settingsPurposeDisplay: String {
+        let trimmed = operatorPurpose.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Not specified" : trimmed
     }
 
     private var terminalButtonBackground: some View {
@@ -491,12 +556,42 @@ struct BootSequenceView: View {
     @MainActor
     private func clearIdentity() {
         guard bootPhase == .awaitingOperator else { return }
+        performClearIdentity(useWarningHaptic: false)
+    }
 
+    @MainActor
+    private func clearIdentityFromSettings() {
+        guard bootPhase == .complete, activeDesktopPanel == .settings else { return }
+        performClearIdentity(useWarningHaptic: true)
+    }
+
+    @MainActor
+    private func performClearIdentity(useWarningHaptic: Bool) {
         OperatorIdentityStore.clear()
         operatorName = ""
         operatorPurpose = ""
         focusedLoginField = nil
+        resolvedOperatorName = "Operator"
+        resolvedPurposeLogLine = "> Purpose logged."
+
+        if useWarningHaptic {
+            playWarningHaptic()
+        } else {
+            playSelectionHaptic()
+        }
+    }
+
+    @MainActor
+    private func openSettings() {
+        guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
         playSelectionHaptic()
+        activeDesktopPanel = .settings
+    }
+
+    @MainActor
+    private func closeSettings() {
+        playSelectionHaptic()
+        activeDesktopPanel = nil
     }
 
     private func scrollDuringAnimation(proxy: ScrollViewProxy, anchorID: String) {
@@ -517,7 +612,7 @@ struct BootSequenceView: View {
     }
 
     private func enterArchive() {
-        guard !isExitingBoot else { return }
+        guard !isExitingBoot, !isShuttingDown else { return }
 
         stopIdleArtifacts()
         playSelectionHaptic()
@@ -535,6 +630,66 @@ struct BootSequenceView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
             onComplete()
         }
+    }
+
+    @MainActor
+    private func beginShutdown() {
+        guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
+
+        stopIdleArtifacts()
+        playSelectionHaptic()
+        activeDesktopPanel = nil
+        isShuttingDown = true
+        focusedLoginField = nil
+
+        if reduceMotion {
+            shutdownCollapseScale = 0.015
+            shutdownStage = .black
+            shutdownDotOpacity = 0
+            finishShutdownSequence()
+            return
+        }
+
+        shutdownStage = .collapse
+        withAnimation(.easeIn(duration: 0.28)) {
+            shutdownCollapseScale = 0.012
+        }
+
+        Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard isShuttingDown else { return }
+
+            shutdownStage = .line
+
+            try? await Task.sleep(nanoseconds: 240_000_000)
+            guard isShuttingDown else { return }
+
+            withAnimation(.easeIn(duration: 0.18)) {
+                shutdownStage = .dot
+            }
+
+            try? await Task.sleep(nanoseconds: 420_000_000)
+            guard isShuttingDown else { return }
+
+            withAnimation(.easeOut(duration: 0.55)) {
+                shutdownStage = .black
+                shutdownDotOpacity = 0
+            }
+
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard isShuttingDown else { return }
+
+            finishShutdownSequence()
+        }
+    }
+
+    private func finishShutdownSequence() {
+        #if DEBUG
+        // Do not use exit(0) in production/App Store builds.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            exit(0)
+        }
+        #endif
     }
 
     @MainActor
@@ -632,6 +787,14 @@ struct BootSequenceView: View {
         let generator = UISelectionFeedbackGenerator()
         generator.prepare()
         generator.selectionChanged()
+        #endif
+    }
+
+    private func playWarningHaptic() {
+        #if os(iOS)
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(.warning)
         #endif
     }
 
@@ -969,6 +1132,147 @@ private struct BootFinalRevealView: View {
 
 // MARK: - OS Dashboard
 
+private struct BootSettingsPanel: View {
+    let color: Color
+    let operatorNameDisplay: String
+    let purposeDisplay: String
+    let reduceMotionActive: Bool
+    @Binding var alwaysShowBootSequence: Bool
+    @Binding var enableCRTEffects: Bool
+    let onClose: () -> Void
+    let onClearIdentity: () -> Void
+    let onToggleHaptic: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            settingsTitleBar
+                .padding(.bottom, 10)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    settingsInfoRow(label: "OPERATOR NAME:", value: operatorNameDisplay)
+                    settingsInfoRow(label: "PURPOSE:", value: purposeDisplay)
+
+                    settingsToggleRow(
+                        label: "ALWAYS SHOW BOOT SEQUENCE",
+                        isOn: alwaysShowBootSequence
+                    ) {
+                        alwaysShowBootSequence.toggle()
+                        onToggleHaptic()
+                    }
+
+                    settingsToggleRow(
+                        label: "CRT EFFECTS",
+                        isOn: enableCRTEffects
+                    ) {
+                        enableCRTEffects.toggle()
+                        onToggleHaptic()
+                    }
+
+                    settingsInfoRow(
+                        label: "REDUCE MOTION:",
+                        value: reduceMotionActive ? "SYSTEM ACTIVE" : "SYSTEM CONTROLLED"
+                    )
+                    settingsInfoRow(label: "ARCHIVE ACCESS:", value: "LOCAL ONLY")
+                    settingsInfoRow(label: "REGISTRY LINK:", value: "UNVERIFIED")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 180)
+
+            HStack(spacing: 10) {
+                settingsActionButton(title: "[ CLOSE ]", prominent: true, action: onClose)
+                settingsActionButton(title: "[ CLEAR IDENTITY ]", prominent: false, action: onClearIdentity)
+            }
+            .padding(.top, 12)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color.black.opacity(0.34))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(color.opacity(0.55), lineWidth: 1.5)
+        )
+        .shadow(color: color.opacity(0.32), radius: 10, y: 2)
+        .shadow(color: color.opacity(0.14), radius: 3, y: 0)
+    }
+
+    private var settingsTitleBar: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("SETTINGS / OPERATOR PREFERENCES")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundStyle(color.opacity(0.94))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+
+                Spacer(minLength: 8)
+
+                Text("[ ACTIVE WINDOW ]")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(color.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+
+            Rectangle()
+                .fill(color.opacity(0.22))
+                .frame(height: 1)
+        }
+    }
+
+    private func settingsInfoRow(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(color.opacity(0.52))
+            Text(value)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(color.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func settingsToggleRow(label: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text("[ \(isOn ? "X" : " ") ]")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(color.opacity(isOn ? 0.92 : 0.48))
+                Text(label)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(color.opacity(0.72))
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func settingsActionButton(title: String, prominent: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: prominent ? .bold : .semibold, design: .monospaced))
+                .foregroundStyle(color.opacity(prominent ? 0.92 : 0.62))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(color.opacity(prominent ? 0.5 : 0.32), lineWidth: 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(color.opacity(prominent ? 0.06 : 0.03))
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct BootDashboardWidthKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
@@ -979,6 +1283,10 @@ private struct BootDashboardWidthKey: PreferenceKey {
 
 private struct BootDashboardView: View {
     let color: Color
+    var isSettingsEnabled: Bool = false
+    var isLogoutEnabled: Bool = false
+    let onSettings: () -> Void
+    let onLogout: () -> Void
 
     @State private var containerWidth: CGFloat = 0
 
@@ -1031,8 +1339,8 @@ private struct BootDashboardView: View {
                 dashboardMenuItem("> ACTIVE COUNTDOWNS")
                 dashboardMenuItem("> ARCHIVE BROWSER")
                 dashboardMenuItem("> INCIDENT OF THE DAY")
-                dashboardMenuItem("> SETTINGS")
-                dashboardMenuItem("> LOGOUT")
+                dashboardSettingsItem
+                dashboardLogoutItem
             }
         }
 
@@ -1067,6 +1375,28 @@ private struct BootDashboardView: View {
                     .foregroundStyle(color.opacity(0.72))
             }
         }
+    }
+
+    private var dashboardSettingsItem: some View {
+        Button(action: onSettings) {
+            Text("> SETTINGS")
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(color.opacity(isSettingsEnabled ? 0.72 : 0.62))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isSettingsEnabled)
+    }
+
+    private var dashboardLogoutItem: some View {
+        Button(action: onLogout) {
+            Text("> LOGOUT")
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(color.opacity(isLogoutEnabled ? 0.72 : 0.62))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isLogoutEnabled)
     }
 
     private func dashboardMenuItem(_ text: String, highlighted: Bool = false) -> some View {
@@ -1564,6 +1894,43 @@ private struct BootWiFiScanPulseModifier: ViewModifier {
 private extension View {
     func bootPulse(active: Bool, color: Color) -> some View {
         modifier(BootPulseModifier(active: active, color: color))
+    }
+}
+
+private struct CRTShutdownOverlay: View {
+    let stage: ShutdownStage
+    let color: Color
+    let dotOpacity: Double
+
+    var body: some View {
+        ZStack {
+            Color.black
+                .opacity(stage == .black ? 1 : 0)
+                .animation(.easeOut(duration: 0.55), value: stage)
+
+            if stage == .line || stage == .dot {
+                shutdownBeam
+                    .shadow(color: color.opacity(0.85), radius: stage == .line ? 10 : 4)
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(true)
+    }
+
+    @ViewBuilder
+    private var shutdownBeam: some View {
+        if stage == .line {
+            Capsule()
+                .fill(color.opacity(0.95))
+                .frame(height: 3)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 8)
+        } else {
+            Circle()
+                .fill(color.opacity(0.92))
+                .frame(width: 6, height: 6)
+                .opacity(dotOpacity)
+        }
     }
 }
 
