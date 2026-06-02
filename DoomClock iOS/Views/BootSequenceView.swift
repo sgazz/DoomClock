@@ -201,7 +201,7 @@ struct BootSequenceView: View {
             resolvedPurposeLogLine,
             "> DoomClock OS ready.",
             "> Archive Cycle 7342 confirmed.",
-            "> What will you end today?",
+            "> What will you understand before it ends?",
         ]
     }
 
@@ -526,7 +526,7 @@ struct BootSequenceView: View {
             .terminalLine("> Certainty unavailable."),
             .terminalLine("> Loading curiosity instead...                   [ OK ]"),
             .terminalLine("> Connecting to The Registry...                  [ OK ]"),
-            .terminalLine("> Resolving archive endpoints...                 [ OK ]"),
+            .terminalLine("> Locating unfinished lessons...                 [ OK ]"),
             .terminalLine("> Mounting encrypted volumes...                  [ OK ]"),
             .terminalLine("> Loading archive index...                       [ OK ]"),
             .terminalLine(">"),
@@ -534,8 +534,9 @@ struct BootSequenceView: View {
             .terminalLine("> Status: LOCKED"),
             .terminalLine("> Encryption: SYMBOLIC-AES-2047"),
             .terminalLine("> Access: RESTRICTED"),
-            .terminalLine("> Integrity: UNKNOWN"),
+            .terminalLine("> Integrity: PENDING"),
             .terminalLine("> Override required."),
+            .terminalLine("> Scanning nearby unstable networks..."),
             .asciiBlock(BootASCIIArt.archiveControlBox),
             .terminalLine(">"),
             .terminalLine("> Requesting override keys..."),
@@ -558,18 +559,18 @@ struct BootSequenceView: View {
 
 private enum BootASCIIArt {
     static let archiveControlBox = """
-    ┌──────────────────────────────┐
-    │ /DEV/ARCHIVE_CTRL            │
-    │ STATUS: LOCKED               │
-    │ ACCESS: RESTRICTED           │
-    │                              │
-    │        ███████               │
-    │       ██     ██              │
-    │       ██     ██              │
-    │     ████████████             │
-    │     ███  ██  ███             │
-    │     ████████████             │
-    └──────────────────────────────┘
+    ┌───────────────────────┬───────────────────────┐
+    │ /DEV/ARCHIVE_CTRL     │ /DEV/WIFI_SCAN        │
+    │ STATUS: LOCKED        │ STATUS: SCANNING      │
+    │ ACCESS: RESTRICTED    │ NETWORKS: --          │
+    │                       │                       │
+    │       ███████         │        ▄              │
+    │      ██     ██        │     ▄  █  ▄           │
+    │      ██     ██        │   ▄ █  █  █ ▄         │
+    │    ████████████       │     █  █  █           │
+    │    ███  ██  ███       │        █              │
+    │    ████████████       │   SIGNAL: SEARCHING   │
+    └───────────────────────┴───────────────────────┘
     """
 
     static let archiveFoundBlock = """
@@ -601,24 +602,26 @@ private struct TerminalASCIIBlockView: View {
     let color: Color
 
     var body: some View {
-        Text(content)
-            .font(.system(size: 10, weight: .medium, design: .monospaced))
-            .foregroundStyle(color.opacity(0.84))
-            .shadow(color: color.opacity(0.22), radius: 1.5)
-            .multilineTextAlignment(.leading)
-            .lineSpacing(2)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .stroke(color.opacity(0.28), lineWidth: 1)
-                    .background(
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(Color.black.opacity(0.2))
-                    )
-            )
+        ScrollView(.horizontal, showsIndicators: false) {
+            Text(content)
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundStyle(color.opacity(0.84))
+                .shadow(color: color.opacity(0.22), radius: 1.5)
+                .multilineTextAlignment(.leading)
+                .lineSpacing(2)
+                .fixedSize(horizontal: true, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .stroke(color.opacity(0.28), lineWidth: 1)
+                .background(
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Color.black.opacity(0.2))
+                )
+        )
     }
 }
 
@@ -753,8 +756,8 @@ private struct BootFinalRevealView: View {
                 .shadow(color: color.opacity(0.35), radius: 2)
 
             VStack(spacing: 6) {
-                Text("Time doesn't destroy.")
-                Text("Understanding does.")
+                Text("Time doesn't end things.")
+                Text("It reveals them.")
             }
             .font(.system(size: 13, weight: .medium, design: .monospaced))
             .foregroundStyle(color.opacity(0.72))
@@ -867,8 +870,8 @@ private struct BootDashboardView: View {
                     detail: "  somewhere."
                 )
                 feedEntry(
-                    headline: "> The universe continues",
-                    detail: "  without consulting us."
+                    headline: "> The day continued",
+                    detail: "  without asking permission."
                 )
                 Text("> As expected.")
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
