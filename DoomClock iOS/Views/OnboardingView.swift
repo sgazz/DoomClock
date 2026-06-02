@@ -46,8 +46,8 @@ struct OnboardingView: View {
 
             if isMicroIntro {
                 microIntroContent
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, step == .intro ? 0 : 12)
+                    .padding(.vertical, step == .intro ? 0 : 8)
             } else {
                 VStack(spacing: 8) {
                     glanceContent
@@ -246,59 +246,96 @@ struct OnboardingView: View {
     }
 
     private var firstIntroContent: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                Text("SET THE DATE\nOF THE END…\nOF SOMETHING")
-                    .font(.system(size: 20, weight: .bold, design: .monospaced))
-                    .foregroundStyle(mode.primaryColor)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .minimumScaleFactor(0.72)
-                    .terminalFlicker()
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("DOOMCLOCK // INITIAL BRIEFING")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(mode.primaryColor.opacity(0.42))
+                            .tracking(1.1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.bottom, 18)
 
-                Text("""
-                Pick a day.
-                Set the time.
-                """)
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    .foregroundStyle(mode.primaryColor.opacity(0.82))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-                    .frame(maxWidth: .infinity)
+                        Text("SET THE DATE\nOF THE END…\nOF SOMETHING")
+                            .font(.system(size: 40, weight: .bold, design: .monospaced))
+                            .foregroundStyle(mode.primaryColor)
+                            .multilineTextAlignment(.leading)
+                            .lineSpacing(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .minimumScaleFactor(0.72)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .terminalFlicker()
+                            .padding(.bottom, 32)
 
-                Text("↓")
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(mode.primaryColor)
-                    .opacity(0.5)
-
-                Text("""
-                Don’t worry —
-                nothing will
-                actually happen.
-
-                Someone said
-                everything is
-                under control.
-
-                That same someone
-                has never been right.
-                """)
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    .foregroundStyle(mode.primaryColor.opacity(0.82))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-                    .frame(maxWidth: .infinity)
-
-                primaryButton(title: "CONTINUE") {
-                    guard !isProcessing else { return }
-                    continueFromMicroIntro()
+                        VStack(alignment: .leading, spacing: 26) {
+                            ForEach(introBriefingParagraphs, id: \.self) { paragraph in
+                                introBriefingParagraph(paragraph)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 4)
+                    .padding(.bottom, 20)
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: max(geometry.size.height - introBottomBarHeight, 0),
+                        alignment: .topLeading
+                    )
                 }
+
+                introBottomBar
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 24)
-            .padding(.bottom, 24)
         }
+    }
+
+    private var introBottomBar: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(mode.primaryColor.opacity(0.14))
+                .frame(height: 1)
+
+            primaryButton(title: "CONTINUE") {
+                guard !isProcessing else { return }
+                continueFromMicroIntro()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 8)
+        }
+        .background(DoomClockUI.background)
+    }
+
+    private var introBottomBarHeight: CGFloat { 90 }
+
+    private var introBriefingParagraphs: [String] {
+        [
+            "Pick a day.\nSet the time.",
+            """
+            The following entry will be logged as your chosen endpoint.
+            No alarms will sound.
+            No agency will be notified.
+            """,
+            "Don't worry — nothing will actually happen.",
+            "Someone senior once said everything is under control.",
+            "That same someone has never been right about anything important.",
+            """
+            You are reading an official DoomClock briefing.
+            Treat it accordingly.
+            """,
+            "Proceed when ready.\nAuthorization is assumed.",
+        ]
+    }
+
+    private func introBriefingParagraph(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 16, weight: .medium, design: .monospaced))
+            .foregroundStyle(mode.primaryColor.opacity(0.76))
+            .multilineTextAlignment(.leading)
+            .lineSpacing(8)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var dateIntroContent: some View {
