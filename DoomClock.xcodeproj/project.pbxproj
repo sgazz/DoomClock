@@ -18,7 +18,37 @@
 		DC000001000000000000001B /* DoomClockComplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC000001000000000000001C /* DoomClockComplication.swift */; };
 		DC000001000000000000001F /* SharedDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0000010000000000000020 /* SharedDefaults.swift */; };
 		DC0000010000000000000021 /* SharedDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0000010000000000000020 /* SharedDefaults.swift */; };
+		DC0000020000000000000010 /* DoomClock Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = CFA54AA42FA8B46400956098 /* DoomClock Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DC0000020000000000000011 /* DoomMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0000010000000000000004 /* DoomMode.swift */; };
+		DC0000020000000000000012 /* DoomSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0000010000000000000006 /* DoomSettings.swift */; };
+		DC0000020000000000000013 /* PersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0000010000000000000008 /* PersistenceService.swift */; };
+		DC0000020000000000000014 /* CountdownFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC000001000000000000000A /* CountdownFormatter.swift */; };
+		DC0000020000000000000015 /* SharedDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0000010000000000000020 /* SharedDefaults.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		DC0000030000000000000009 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CFA54A982FA8B46400956098 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CFA54AA32FA8B46400956098;
+			remoteInfo = "DoomClock Watch App";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		DC0000030000000000000008 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				DC0000020000000000000010 /* DoomClock Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		CFA54AA42FA8B46400956098 /* DoomClock Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "DoomClock Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -31,12 +61,18 @@
 		DC000001000000000000001D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		DC000001000000000000001E /* DoomClock Complication.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "DoomClock Complication.entitlements"; sourceTree = "<group>"; };
 		DC0000010000000000000020 /* SharedDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDefaults.swift; sourceTree = "<group>"; };
+		DC0000020000000000000001 /* DoomClock iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "DoomClock iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CFA54AA82FA8B46400956098 /* DoomClock Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "DoomClock Watch App";
+			sourceTree = "<group>";
+		};
+		DC0000020000000000000002 /* DoomClock iOS */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "DoomClock iOS";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -56,12 +92,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DC0000030000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		CFA54A972FA8B46400956098 = {
 			isa = PBXGroup;
 			children = (
+				DC0000020000000000000002 /* DoomClock iOS */,
 				CFA54AA82FA8B46400956098 /* DoomClock Watch App */,
 				DC0000010000000000000014 /* Shared */,
 				DC0000010000000000000012 /* DoomClock Complication */,
@@ -72,6 +116,7 @@
 		CFA54A9F2FA8B46400956098 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				DC0000020000000000000001 /* DoomClock iOS.app */,
 				CFA54AA42FA8B46400956098 /* DoomClock Watch App.app */,
 				DC0000010000000000000002 /* DoomClock Complication.appex */,
 			);
@@ -144,6 +189,30 @@
 			productReference = DC0000010000000000000002 /* DoomClock Complication.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		DC0000030000000000000001 /* DoomClock iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DC0000030000000000000002 /* Build configuration list for PBXNativeTarget "DoomClock iOS" */;
+			buildPhases = (
+				DC0000030000000000000004 /* Sources */,
+				DC0000030000000000000006 /* Frameworks */,
+				DC0000030000000000000007 /* Resources */,
+				DC0000030000000000000008 /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DC000003000000000000000A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DC0000020000000000000002 /* DoomClock iOS */,
+			);
+			name = "DoomClock iOS";
+			packageProductDependencies = (
+			);
+			productName = "DoomClock iOS";
+			productReference = DC0000020000000000000001 /* DoomClock iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -165,6 +234,9 @@
 							};
 						};
 					};
+					DC0000030000000000000001 = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
 				};
 			};
 			buildConfigurationList = CFA54A9B2FA8B46400956098 /* Build configuration list for PBXProject "DoomClock" */;
@@ -181,6 +253,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				DC0000030000000000000001 /* DoomClock iOS */,
 				CFA54AA32FA8B46400956098 /* DoomClock Watch App */,
 				DC0000010000000000000010 /* DoomClock Complication */,
 			);
@@ -196,6 +269,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		DC0000010000000000000018 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DC0000030000000000000007 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -230,7 +310,27 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DC0000030000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DC0000020000000000000011 /* DoomMode.swift in Sources */,
+				DC0000020000000000000012 /* DoomSettings.swift in Sources */,
+				DC0000020000000000000013 /* PersistenceService.swift in Sources */,
+				DC0000020000000000000014 /* CountdownFormatter.swift in Sources */,
+				DC0000020000000000000015 /* SharedDefaults.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DC000003000000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CFA54AA32FA8B46400956098 /* DoomClock Watch App */;
+			targetProxy = DC0000030000000000000009 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		CFA54AAF2FA8B46500956098 /* Debug */ = {
@@ -362,7 +462,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = DoomClock;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKWatchOnly = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = Gazza.DoomClock;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -371,7 +471,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = Gazza.DoomClock.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
-				SKIP_INSTALL = NO;
+				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -396,7 +496,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = DoomClock;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKWatchOnly = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = Gazza.DoomClock;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -405,7 +505,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = Gazza.DoomClock.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
-				SKIP_INSTALL = NO;
+				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -483,6 +583,73 @@
 			};
 			name = Release;
 		};
+		DC000003000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 83F7KY8L5Y;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = DoomClock;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Gazza.DoomClock;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		DC000003000000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 83F7KY8L5Y;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = DoomClock;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Gazza.DoomClock;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -509,6 +676,15 @@
 			buildConfigurations = (
 				DC0000010000000000000019 /* Debug */,
 				DC000001000000000000001A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DC0000030000000000000002 /* Build configuration list for PBXNativeTarget "DoomClock iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DC000003000000000000000B /* Debug */,
+				DC000003000000000000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

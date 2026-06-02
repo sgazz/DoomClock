@@ -23,11 +23,11 @@ It is not a prediction tool, warning system, emergency app, or real-world alerti
 
 ## Platform
 
-- watchOS only
+- iOS 17+ (iPhone companion)
+- watchOS 11.6+ (embedded Watch app)
 - SwiftUI
-- No iPhone companion app
 - No network dependency
-- Local persistence only
+- Local persistence only (`UserDefaults.standard` per platform)
 
 ## v1 Release Note
 
@@ -58,8 +58,14 @@ App Group storage is currently disabled and documented in code for future compli
 ## Project Structure
 
 ```text
+DoomClock iOS/
+  Services/          # UIKit haptics
+  ViewModels/
+  Views/
+    Components/
+
 DoomClock Watch App/
-  Services/
+  Services/          # WatchKit haptics
   ViewModels/
   Views/
     Components/
@@ -77,9 +83,12 @@ Shared/
 
 ## Build
 
-Open `DoomClock.xcodeproj` in Xcode and run the `DoomClock Watch App` scheme on an Apple Watch simulator or physical Apple Watch.
+Open `DoomClock.xcodeproj` in Xcode.
 
-For v1, the Watch app scheme should build only the Watch app target. The complication target is present in the project but should not be embedded in the app product.
+- **iPhone:** run the `DoomClock iOS` scheme (embeds the Watch app for App Store distribution).
+- **Watch only (development):** run the `DoomClock Watch App` scheme on a Watch simulator or device.
+
+The complication target is present for a future v1.1 release and is not embedded in v1 products.
 
 ## Design Direction
 
