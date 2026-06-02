@@ -60,8 +60,29 @@ struct BootSequenceView: View {
     @State private var showDashboard = false
     @State private var showEnterButton = false
     @State private var glitchOpacity: Double = 1
+    @State private var failFlashTrigger = 0
     @State private var hasPlayedCompleteHaptic = false
     @State private var bootTask: Task<Void, Never>?
+    @State private var idleArtifacts: [BootIdleArtifact] = []
+    @State private var idleArtifactTask: Task<Void, Never>?
+    @State private var enterButtonTitle = "[ ENTER THE ARCHIVE ]"
+    @State private var isExitingBoot = false
+    @State private var bootExitOpacity: Double = 1
+
+    private let maxIdleArtifacts = 8
+
+    private var crtScanMode: BootCRTScanMode {
+        switch bootPhase {
+        case .bootingPhase1:
+            return .bootingPhase1
+        case .awaitingOperator:
+            return .awaitingOperator
+        case .bootingPhase2:
+            return .bootingPhase2
+        case .complete:
+            return .complete
+        }
+    }
 
     private let terminalColor = DoomMode.suspicious.primaryColor
     private let phaseOneProgressCap = 0.65
@@ -79,6 +100,9 @@ struct BootSequenceView: View {
                 .allowsHitTesting(false)
 
             ScanlineOverlay(color: terminalColor)
+
+            CRTScanBeam(color: terminalColor, mode: crtScanMode)
+                .opacity(bootExitOpacity)
 
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
@@ -161,6 +185,8 @@ struct BootSequenceView: View {
 
                 bottomChrome
             }
+
+            BootFlashOverlay(color: terminalColor, trigger: failFlashTrigger)
         }
         .onAppear {
             loadOperatorIdentity()
@@ -169,6 +195,7 @@ struct BootSequenceView: View {
         .onDisappear {
             bootTask?.cancel()
             bootTask = nil
+            stopIdleArtifacts()
         }
     }
 
@@ -229,9 +256,19 @@ struct BootSequenceView: View {
                                 .id("boot-dashboard")
                         }
 
+                        if bootPhase == .complete, !idleArtifacts.isEmpty {
+                            VStack(alignment: .leading, spacing: 3) {
+                                ForEach(idleArtifacts) { artifact in
+                                    BootIdleArtifactView(text: artifact.text, color: terminalColor)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .opacity(bootExitOpacity)
+                        }
+
                         if showEnterButton {
                             Button(action: enterArchive) {
-                                Text("[ ENTER THE ARCHIVE ]")
+                                Text(enterButtonTitle)
                                     .font(.system(size: 15, weight: .bold, design: .monospaced))
                                     .foregroundStyle(terminalColor)
                                     .shadow(color: terminalColor.opacity(0.35), radius: 2)
@@ -242,6 +279,8 @@ struct BootSequenceView: View {
                                     .background(terminalButtonBackground)
                             }
                             .buttonStyle(.plain)
+                            .modifier(BootEnterArchivePulseModifier(isActive: !isExitingBoot, color: terminalColor))
+                            .disabled(isExitingBoot)
                         }
                     }
                 }
@@ -293,8 +332,14 @@ struct BootSequenceView: View {
             try? await Task.sleep(nanoseconds: baseDelay + jitter)
             if Task.isCancelled { return }
 
+            await maybeHesitateProgress()
+
             visiblePreLoginCount = index + 1
             progress = Double(index + 1) / Double(preLoginSteps.count) * phaseOneProgressCap
+
+            if case .terminalLine(let text) = preLoginSteps[index], text.contains("[ FAIL ]") {
+                triggerFailFlash()
+            }
 
             if index.isMultiple(of: 6) {
                 await pulseGlitch()
@@ -330,6 +375,8 @@ struct BootSequenceView: View {
             let jitter = UInt64.random(in: 30_000_000...140_000_000)
             try? await Task.sleep(nanoseconds: baseDelay + jitter)
             if Task.isCancelled { return }
+
+            await maybeHesitateProgress()
 
             visiblePostLoginCount = index + 1
             progress = phaseOneProgressCap + (Double(index + 1) / Double(lines.count) * progressSpan)
@@ -370,6 +417,9 @@ struct BootSequenceView: View {
         case .bootingPhase1:
             guard isAnimating || visiblePreLoginCount < preLoginSteps.count else { return }
             bootTask?.cancel()
+            if shouldFlashOnSkipFail(from: visiblePreLoginCount) {
+                triggerFailFlash()
+            }
             visiblePreLoginCount = preLoginSteps.count
             progress = phaseOneProgressCap
             isAnimating = false
@@ -402,6 +452,7 @@ struct BootSequenceView: View {
             showFinalReveal = true
             showDashboard = true
             showEnterButton = true
+            startIdleArtifacts()
             return
         }
 
@@ -415,6 +466,7 @@ struct BootSequenceView: View {
         withAnimation(.easeOut(duration: 0.25)) {
             showEnterButton = true
         }
+        startIdleArtifacts()
     }
 
     private func displayName(from raw: String) -> String {
@@ -465,9 +517,109 @@ struct BootSequenceView: View {
     }
 
     private func enterArchive() {
+        guard !isExitingBoot else { return }
+
+        stopIdleArtifacts()
         playSelectionHaptic()
-        onComplete()
+        isExitingBoot = true
+
+        if reduceMotion {
+            onComplete()
+            return
+        }
+
+        withAnimation(.easeOut(duration: 0.4)) {
+            bootExitOpacity = 0
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
+            onComplete()
+        }
     }
+
+    @MainActor
+    private func startIdleArtifacts() {
+        guard bootPhase == .complete else { return }
+        idleArtifactTask?.cancel()
+        idleArtifactTask = Task {
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            while !Task.isCancelled {
+                appendIdleArtifact()
+                await maybeFlickerEnterLabel()
+                let delay = UInt64.random(in: 2_000_000_000...5_000_000_000)
+                try? await Task.sleep(nanoseconds: delay)
+            }
+        }
+    }
+
+    @MainActor
+    private func stopIdleArtifacts() {
+        idleArtifactTask?.cancel()
+        idleArtifactTask = nil
+    }
+
+    @MainActor
+    private func appendIdleArtifact() {
+        guard bootPhase == .complete else { return }
+
+        var nextLine = Self.idleArtifactPool.randomElement() ?? "> idle.ping registry              [ OK ]"
+        let lastText = idleArtifacts.last?.text
+        while nextLine == lastText, Self.idleArtifactPool.count > 1 {
+            nextLine = Self.idleArtifactPool.randomElement() ?? nextLine
+        }
+
+        let artifact = BootIdleArtifact(text: nextLine)
+        if reduceMotion {
+            idleArtifacts.append(artifact)
+            trimIdleArtifacts()
+        } else {
+            withAnimation(.easeIn(duration: 0.28)) {
+                idleArtifacts.append(artifact)
+                trimIdleArtifacts()
+            }
+        }
+    }
+
+    private func trimIdleArtifacts() {
+        if idleArtifacts.count > maxIdleArtifacts {
+            idleArtifacts.removeFirst(idleArtifacts.count - maxIdleArtifacts)
+        }
+    }
+
+    @MainActor
+    private func maybeFlickerEnterLabel() async {
+        guard showEnterButton, bootPhase == .complete, !reduceMotion else { return }
+        guard Double.random(in: 0...1) < 0.28 else { return }
+
+        let alternatives = Self.enterButtonLabelVariants.filter { $0 != enterButtonTitle }
+        guard let alternate = alternatives.randomElement() else { return }
+
+        enterButtonTitle = alternate
+        try? await Task.sleep(nanoseconds: 420_000_000)
+        guard !Task.isCancelled, bootPhase == .complete else { return }
+        enterButtonTitle = "[ ENTER THE ARCHIVE ]"
+    }
+
+    private static let idleArtifactPool: [String] = [
+        "> idle.ping registry              [ OK ]",
+        "> archive echo received",
+        "> unresolved ending detected nearby",
+        "> lesson residue fluctuating",
+        "> signal drift: acceptable",
+        "> memory fragment indexed",
+        "> no catastrophe detected",
+        "> curiosity module still active",
+        "> time passed normally",
+        "> operator hesitation observed",
+        "> emotional checksum pending",
+        "> silence recorded",
+    ]
+
+    private static let enterButtonLabelVariants: [String] = [
+        "[ ENTER THE ARCHIVE ]",
+        "[ ENTER_THE_ARCHIVE ]",
+        "[ ENTER ARCHIVE ]",
+    ]
 
     private func playCompleteHapticIfNeeded() {
         guard !hasPlayedCompleteHaptic else { return }
@@ -492,10 +644,38 @@ struct BootSequenceView: View {
     }
 
     @MainActor
+    private func maybeHesitateProgress() async {
+        guard !reduceMotion else { return }
+        guard Bool.random() else { return }
+
+        let pause = UInt64.random(in: 150_000_000...250_000_000)
+        try? await Task.sleep(nanoseconds: pause)
+    }
+
+    @MainActor
+    private func triggerFailFlash() {
+        guard !reduceMotion else { return }
+        failFlashTrigger += 1
+    }
+
+    private func shouldFlashOnSkipFail(from visibleCount: Int) -> Bool {
+        guard let failIndex = preLoginSteps.firstIndex(where: { step in
+            if case .terminalLine(let text) = step {
+                return text.contains("[ FAIL ]")
+            }
+            return false
+        }) else {
+            return false
+        }
+        return visibleCount <= failIndex
+    }
+
+    @MainActor
     private func pulseGlitch() async {
         guard !reduceMotion else { return }
-        glitchOpacity = 0.84
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        glitchOpacity = Double.random(in: 0.72...0.85)
+        let duration = UInt64.random(in: 40_000_000...70_000_000)
+        try? await Task.sleep(nanoseconds: duration)
         glitchOpacity = 1
     }
 
@@ -505,8 +685,13 @@ struct BootSequenceView: View {
         case .terminalLine(let text):
             TerminalLineView(text: text, color: terminalColor)
         case .asciiBlock(let content):
-            TerminalASCIIBlockView(content: content, color: terminalColor)
-                .padding(.vertical, 4)
+            TerminalASCIIBlockView(
+                content: content,
+                color: terminalColor,
+                pulseOnAppear: true,
+                wifiScanActive: content.contains("WIFI_SCAN") && bootPhase == .bootingPhase1
+            )
+            .padding(.vertical, 4)
         }
     }
 
@@ -600,6 +785,8 @@ private enum BootASCIIArt {
 private struct TerminalASCIIBlockView: View {
     let content: String
     let color: Color
+    var pulseOnAppear: Bool = false
+    var wifiScanActive: Bool = false
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -622,6 +809,8 @@ private struct TerminalASCIIBlockView: View {
                         .fill(Color.black.opacity(0.2))
                 )
         )
+        .bootPulse(active: pulseOnAppear, color: color)
+        .modifier(BootWiFiScanPulseModifier(isActive: wifiScanActive, color: color))
     }
 }
 
@@ -1097,6 +1286,284 @@ private struct BlinkingCursorView: View {
                     isVisible = false
                 }
             }
+    }
+}
+
+private struct BootIdleArtifact: Identifiable {
+    let id = UUID()
+    let text: String
+}
+
+private struct BootIdleArtifactView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let text: String
+    let color: Color
+
+    @State private var opacity: Double = 0
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .medium, design: .monospaced))
+            .foregroundStyle(color.opacity(0.58))
+            .shadow(color: color.opacity(0.16), radius: 1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .opacity(opacity)
+            .onAppear {
+                if reduceMotion {
+                    opacity = 1
+                } else {
+                    withAnimation(.easeIn(duration: 0.28)) {
+                        opacity = 1
+                    }
+                }
+            }
+    }
+}
+
+private struct BootEnterArchivePulseModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let isActive: Bool
+    let color: Color
+
+    @State private var pulseAmount: Double = 0
+
+    func body(content: Content) -> some View {
+        content
+            .shadow(color: color.opacity(0.18 + pulseAmount * 0.22), radius: 2 + pulseAmount * 2.5)
+            .opacity(0.9 + pulseAmount * 0.1)
+            .onAppear {
+                updatePulse()
+            }
+            .onChange(of: isActive) { _, _ in
+                updatePulse()
+            }
+    }
+
+    private func updatePulse() {
+        guard isActive, !reduceMotion else {
+            pulseAmount = 0
+            return
+        }
+
+        pulseAmount = 0
+        withAnimation(.easeInOut(duration: 1.9).repeatForever(autoreverses: true)) {
+            pulseAmount = 1
+        }
+    }
+}
+
+// MARK: - Boot Animations
+
+private enum BootCRTScanMode: Equatable {
+    case bootingPhase1
+    case awaitingOperator
+    case bootingPhase2
+    case complete
+
+    var sweepDuration: Double {
+        switch self {
+        case .bootingPhase1:
+            return 3.4
+        case .bootingPhase2:
+            return 4.8
+        case .awaitingOperator:
+            return 5.6
+        case .complete:
+            return 7.6
+        }
+    }
+
+    var enablesBreathing: Bool {
+        self == .complete
+    }
+}
+
+private struct CRTScanBeam: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let color: Color
+    let mode: BootCRTScanMode
+
+    @State private var beamProgress: CGFloat = 0
+    @State private var brightnessBoost: Double = 1
+    @State private var breatheTask: Task<Void, Never>?
+
+    var body: some View {
+        GeometryReader { geometry in
+            if !reduceMotion {
+                LinearGradient(
+                    colors: beamGradientColors,
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: max(geometry.size.height * 0.1, 24))
+                .offset(y: beamProgress * (geometry.size.height + geometry.size.height * 0.1) - geometry.size.height * 0.05)
+                .blendMode(.screen)
+                .allowsHitTesting(false)
+                .onAppear {
+                    restartSweep()
+                    updateBreathing()
+                }
+                .onChange(of: mode) { _, _ in
+                    restartSweep()
+                    updateBreathing()
+                }
+                .onDisappear {
+                    breatheTask?.cancel()
+                    breatheTask = nil
+                }
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+
+    private var beamGradientColors: [Color] {
+        [
+            color.opacity(0),
+            color.opacity(0.05 * brightnessBoost),
+            color.opacity(0.12 * brightnessBoost),
+            color.opacity(0.05 * brightnessBoost),
+            color.opacity(0),
+        ]
+    }
+
+    private func restartSweep() {
+        guard !reduceMotion else { return }
+        beamProgress = 0
+        withAnimation(.linear(duration: mode.sweepDuration).repeatForever(autoreverses: false)) {
+            beamProgress = 1
+        }
+    }
+
+    private func updateBreathing() {
+        breatheTask?.cancel()
+        breatheTask = nil
+        brightnessBoost = 1
+
+        guard mode.enablesBreathing, !reduceMotion else { return }
+
+        breatheTask = Task {
+            while !Task.isCancelled {
+                let pause = UInt64.random(in: 3_000_000_000...6_500_000_000)
+                try? await Task.sleep(nanoseconds: pause)
+                if Task.isCancelled { return }
+
+                let targetBoost = Double.random(in: 1.05...1.10)
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.85)) {
+                        brightnessBoost = targetBoost
+                    }
+                }
+
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                if Task.isCancelled { return }
+
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 1.1)) {
+                        brightnessBoost = 1
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct BootFlashOverlay: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let color: Color
+    let trigger: Int
+
+    @State private var flashAmount: Double = 0
+
+    var body: some View {
+        ZStack {
+            color.opacity(0.035 * flashAmount)
+            Color.orange.opacity(0.028 * flashAmount)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .onChange(of: trigger) { _, _ in
+            playFlash()
+        }
+    }
+
+    private func playFlash() {
+        guard !reduceMotion else { return }
+        flashAmount = 1
+        withAnimation(.easeOut(duration: 0.07)) {
+            flashAmount = 0.55
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) {
+            withAnimation(.easeOut(duration: 0.2)) {
+                flashAmount = 0
+            }
+        }
+    }
+}
+
+private struct BootPulseModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let active: Bool
+    let color: Color
+
+    @State private var glowAmount: Double = 0
+
+    func body(content: Content) -> some View {
+        content
+            .shadow(color: color.opacity(glowAmount * 0.45), radius: glowAmount * 9)
+            .onAppear {
+                guard active, !reduceMotion else { return }
+                withAnimation(.easeOut(duration: 0.22)) {
+                    glowAmount = 1
+                }
+                withAnimation(.easeIn(duration: 0.16).delay(0.22)) {
+                    glowAmount = 0
+                }
+            }
+    }
+}
+
+private struct BootWiFiScanPulseModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let isActive: Bool
+    let color: Color
+
+    @State private var scanOpacity: Double = 1
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(scanOpacity)
+            .shadow(color: isActive && !reduceMotion ? color.opacity((2 - scanOpacity) * 0.18) : .clear, radius: 2)
+            .onAppear {
+                updateScanAnimation()
+            }
+            .onChange(of: isActive) { _, _ in
+                updateScanAnimation()
+            }
+    }
+
+    private func updateScanAnimation() {
+        guard isActive, !reduceMotion else {
+            scanOpacity = 1
+            return
+        }
+
+        scanOpacity = 1
+        withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+            scanOpacity = 0.78
+        }
+    }
+}
+
+private extension View {
+    func bootPulse(active: Bool, color: Color) -> some View {
+        modifier(BootPulseModifier(active: active, color: color))
     }
 }
 
