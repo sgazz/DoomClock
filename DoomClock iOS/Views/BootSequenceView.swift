@@ -28,6 +28,8 @@ private enum PowerOnStage {
 
 private enum DesktopPanel {
     case settings
+    case help
+    case newCountdown
 }
 
 private enum PreLoginStep {
@@ -68,6 +70,7 @@ private enum BootPreferencesStore {
 struct BootSequenceView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focusedLoginField: LoginField?
+    @FocusState private var focusedCountdownField: NewCountdownField?
 
     let onComplete: () -> Void
 
@@ -106,6 +109,9 @@ struct BootSequenceView: View {
     @State private var powerOnExpandProgress: CGFloat = 0
     @State private var powerOnOverlayOpacity: Double = 1
     @State private var powerOnTask: Task<Void, Never>?
+    @State private var archivePanelPhase: BootArchivePanelPhase = .wifiScanning(frame: 0)
+    @State private var newCountdownTitle = ""
+    @State private var newCountdownMatter = ""
 
     private let maxIdleArtifacts = 8
 
@@ -320,9 +326,29 @@ struct BootSequenceView: View {
                                 reduceMotionActive: reduceMotion,
                                 alwaysShowBootSequence: $alwaysShowBootSequence,
                                 enableCRTEffects: $enableCRTEffects,
-                                onClose: closeSettings,
+                                onClose: closeDesktopPanel,
                                 onClearIdentity: clearIdentityFromSettings,
                                 onToggleHaptic: playSelectionHaptic
+                            )
+                            .zIndex(1)
+                        }
+
+                        if activeDesktopPanel == .help {
+                            BootHelpPanel(
+                                color: terminalColor,
+                                onClose: closeDesktopPanel
+                            )
+                            .zIndex(1)
+                        }
+
+                        if activeDesktopPanel == .newCountdown {
+                            BootNewCountdownPanel(
+                                color: terminalColor,
+                                title: $newCountdownTitle,
+                                matter: $newCountdownMatter,
+                                focusedField: $focusedCountdownField,
+                                onContinue: continueNewCountdown,
+                                onClose: closeDesktopPanel
                             )
                             .zIndex(1)
                         }
@@ -330,13 +356,14 @@ struct BootSequenceView: View {
                         if showDashboard {
                             BootDashboardView(
                                 color: terminalColor,
-                                isSettingsEnabled: bootPhase == .complete && !isShuttingDown && !isExitingBoot,
-                                isLogoutEnabled: bootPhase == .complete && !isShuttingDown && !isExitingBoot,
+                                isDesktopActionsEnabled: bootPhase == .complete && !isShuttingDown && !isExitingBoot,
+                                onNewCountdown: openNewCountdown,
+                                onHelp: openHelp,
                                 onSettings: openSettings,
                                 onLogout: beginShutdown
                             )
                             .id("boot-dashboard")
-                            .opacity(activeDesktopPanel == .settings ? 0.52 : 1)
+                            .opacity(activeDesktopPanel != nil ? 0.52 : 1)
                         }
 
                         if bootPhase == .complete, !idleArtifacts.isEmpty {
@@ -399,6 +426,7 @@ struct BootSequenceView: View {
 
     private func startBootSequence() {
         guard hasCompletedPowerOn else { return }
+        archivePanelPhase = .wifiScanning(frame: 0)
         bootTask?.cancel()
         bootTask = Task {
             await runPhase1()
@@ -422,56 +450,56 @@ struct BootSequenceView: View {
         powerOnExpandProgress = 0
         powerOnOverlayOpacity = 1
 
-        try? await Task.sleep(nanoseconds: 200_000_000)
+        try? await Task.sleep(nanoseconds: 140_000_000)
         if Task.isCancelled { return }
 
         powerOnStage = .pulse
         for _ in 0..<2 {
-            withAnimation(.easeOut(duration: 0.12)) {
+            withAnimation(.easeOut(duration: 0.1)) {
                 powerOnDotPulseScale = 1.38
             }
-            try? await Task.sleep(nanoseconds: 250_000_000)
+            try? await Task.sleep(nanoseconds: 170_000_000)
             if Task.isCancelled { return }
 
-            withAnimation(.easeIn(duration: 0.13)) {
+            withAnimation(.easeIn(duration: 0.11)) {
                 powerOnDotPulseScale = 1
             }
-            try? await Task.sleep(nanoseconds: 250_000_000)
+            try? await Task.sleep(nanoseconds: 170_000_000)
             if Task.isCancelled { return }
         }
 
-        withAnimation(.easeOut(duration: 0.12)) {
+        withAnimation(.easeOut(duration: 0.1)) {
             powerOnDotPulseScale = 1.32
-        }
-        try? await Task.sleep(nanoseconds: 180_000_000)
-        if Task.isCancelled { return }
-
-        withAnimation(.easeIn(duration: 0.12)) {
-            powerOnDotPulseScale = 1
         }
         try? await Task.sleep(nanoseconds: 120_000_000)
         if Task.isCancelled { return }
 
-        withAnimation(.easeOut(duration: 0.22)) {
-            powerOnStage = .line
+        withAnimation(.easeIn(duration: 0.1)) {
+            powerOnDotPulseScale = 1
         }
-        try? await Task.sleep(nanoseconds: 220_000_000)
+        try? await Task.sleep(nanoseconds: 80_000_000)
         if Task.isCancelled { return }
 
-        withAnimation(.easeOut(duration: 0.32)) {
+        withAnimation(.easeOut(duration: 0.18)) {
+            powerOnStage = .line
+        }
+        try? await Task.sleep(nanoseconds: 160_000_000)
+        if Task.isCancelled { return }
+
+        withAnimation(.easeOut(duration: 0.26)) {
             powerOnStage = .expand
             powerOnExpandProgress = 1
         }
         playSelectionHaptic()
-        try? await Task.sleep(nanoseconds: 320_000_000)
+        try? await Task.sleep(nanoseconds: 240_000_000)
         if Task.isCancelled { return }
 
         powerOnStage = .complete
-        withAnimation(.easeOut(duration: 0.25)) {
+        withAnimation(.easeOut(duration: 0.2)) {
             powerOnOverlayOpacity = 0
         }
         hasCompletedPowerOn = true
-        try? await Task.sleep(nanoseconds: 250_000_000)
+        try? await Task.sleep(nanoseconds: 160_000_000)
         if Task.isCancelled { return }
 
         startBootSequence()
@@ -484,18 +512,18 @@ struct BootSequenceView: View {
 
         if reduceMotion {
             visiblePreLoginCount = preLoginSteps.count
+            archivePanelPhase = .archiveUnlocked
             progress = phaseOneProgressCap
             isAnimating = false
             bootPhase = .awaitingOperator
             return
         }
 
-        let baseDelay: UInt64 = 200_000_000
-
         for index in preLoginSteps.indices {
             if Task.isCancelled { return }
 
-            let jitter = UInt64.random(in: 35_000_000...150_000_000)
+            let baseDelay = UInt64.random(in: 90_000_000...120_000_000)
+            let jitter = UInt64.random(in: 20_000_000...55_000_000)
             try? await Task.sleep(nanoseconds: baseDelay + jitter)
             if Task.isCancelled { return }
 
@@ -503,6 +531,10 @@ struct BootSequenceView: View {
 
             visiblePreLoginCount = index + 1
             progress = Double(index + 1) / Double(preLoginSteps.count) * phaseOneProgressCap
+
+            if isArchiveControlPanelStep(preLoginSteps[index]) {
+                await runArchiveControlPanelSequence()
+            }
 
             if case .terminalLine(let text) = preLoginSteps[index], text.contains("[ FAIL ]") {
                 triggerFailFlash()
@@ -533,13 +565,13 @@ struct BootSequenceView: View {
             return
         }
 
-        let baseDelay: UInt64 = 180_000_000
         let progressSpan = 1 - phaseOneProgressCap
 
         for index in lines.indices {
             if Task.isCancelled { return }
 
-            let jitter = UInt64.random(in: 30_000_000...140_000_000)
+            let baseDelay = UInt64.random(in: 80_000_000...100_000_000)
+            let jitter = UInt64.random(in: 18_000_000...50_000_000)
             try? await Task.sleep(nanoseconds: baseDelay + jitter)
             if Task.isCancelled { return }
 
@@ -590,6 +622,7 @@ struct BootSequenceView: View {
                 triggerFailFlash()
             }
             visiblePreLoginCount = preLoginSteps.count
+            archivePanelPhase = .archiveUnlocked
             progress = phaseOneProgressCap
             isAnimating = false
             bootPhase = .awaitingOperator
@@ -630,9 +663,9 @@ struct BootSequenceView: View {
             showDashboard = true
         }
 
-        try? await Task.sleep(nanoseconds: 320_000_000)
+        try? await Task.sleep(nanoseconds: 200_000_000)
 
-        withAnimation(.easeOut(duration: 0.25)) {
+        withAnimation(.easeOut(duration: 0.2)) {
             showEnterButton = true
         }
         startIdleArtifacts()
@@ -693,8 +726,34 @@ struct BootSequenceView: View {
     }
 
     @MainActor
-    private func closeSettings() {
+    private func openHelp() {
+        guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
         playSelectionHaptic()
+        activeDesktopPanel = .help
+    }
+
+    @MainActor
+    private func openNewCountdown() {
+        guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
+        playSelectionHaptic()
+        activeDesktopPanel = .newCountdown
+        if !reduceMotion {
+            focusedCountdownField = .title
+        }
+    }
+
+    @MainActor
+    private func continueNewCountdown() {
+        guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
+        focusedCountdownField = nil
+        activeDesktopPanel = nil
+        enterArchive()
+    }
+
+    @MainActor
+    private func closeDesktopPanel() {
+        playSelectionHaptic()
+        focusedCountdownField = nil
         activeDesktopPanel = nil
     }
 
@@ -745,6 +804,7 @@ struct BootSequenceView: View {
         activeDesktopPanel = nil
         isShuttingDown = true
         focusedLoginField = nil
+        focusedCountdownField = nil
 
         if reduceMotion {
             shutdownCollapseScale = 0.015
@@ -913,10 +973,51 @@ struct BootSequenceView: View {
     @MainActor
     private func maybeHesitateProgress() async {
         guard !reduceMotion else { return }
-        guard Bool.random() else { return }
+        guard Double.random(in: 0..<1) < 0.28 else { return }
 
-        let pause = UInt64.random(in: 150_000_000...250_000_000)
+        let pause = UInt64.random(in: 80_000_000...120_000_000)
         try? await Task.sleep(nanoseconds: pause)
+    }
+
+    private func isArchiveControlPanelStep(_ step: PreLoginStep) -> Bool {
+        if case .asciiBlock(let content) = step {
+            return content == BootASCIIArt.archiveControlPanelMarker
+        }
+        return false
+    }
+
+    @MainActor
+    private func runArchiveControlPanelSequence() async {
+        if reduceMotion {
+            archivePanelPhase = .archiveUnlocked
+            return
+        }
+
+        let scanDuration = UInt64.random(in: 800_000_000...1_200_000_000)
+        let frameInterval: UInt64 = 120_000_000
+        var elapsed: UInt64 = 0
+        var frame = 0
+
+        archivePanelPhase = .wifiScanning(frame: 0)
+
+        while elapsed < scanDuration {
+            if Task.isCancelled { return }
+            try? await Task.sleep(nanoseconds: frameInterval)
+            if Task.isCancelled { return }
+            elapsed += frameInterval
+            frame = (frame + 1) % 4
+            archivePanelPhase = .wifiScanning(frame: frame)
+        }
+
+        archivePanelPhase = .wifiConnected
+        try? await Task.sleep(nanoseconds: 60_000_000)
+        if Task.isCancelled { return }
+
+        archivePanelPhase = .archiveAuthorizing
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        if Task.isCancelled { return }
+
+        archivePanelPhase = .archiveUnlocked
     }
 
     @MainActor
@@ -952,13 +1053,21 @@ struct BootSequenceView: View {
         case .terminalLine(let text):
             TerminalLineView(text: text, color: terminalColor)
         case .asciiBlock(let content):
-            TerminalASCIIBlockView(
-                content: content,
-                color: terminalColor,
-                pulseOnAppear: true,
-                wifiScanActive: content.contains("WIFI_SCAN") && bootPhase == .bootingPhase1
-            )
-            .padding(.vertical, 4)
+            if isArchiveControlPanelStep(step) {
+                TerminalASCIIBlockView(
+                    content: BootASCIIArt.archiveControlBox(phase: archivePanelPhase),
+                    color: terminalColor,
+                    pulseOnAppear: true
+                )
+                .padding(.vertical, 4)
+            } else {
+                TerminalASCIIBlockView(
+                    content: content,
+                    color: terminalColor,
+                    pulseOnAppear: true
+                )
+                .padding(.vertical, 4)
+            }
         }
     }
 
@@ -989,7 +1098,7 @@ struct BootSequenceView: View {
             .terminalLine("> Integrity: PENDING"),
             .terminalLine("> Override required."),
             .terminalLine("> Scanning nearby unstable networks..."),
-            .asciiBlock(BootASCIIArt.archiveControlBox),
+            .asciiBlock(BootASCIIArt.archiveControlPanelMarker),
             .terminalLine(">"),
             .terminalLine("> Requesting override keys..."),
             .terminalLine("> Override accepted."),
@@ -1009,21 +1118,65 @@ struct BootSequenceView: View {
 
 // MARK: - ASCII Art
 
+private enum BootArchivePanelPhase: Equatable {
+    case wifiScanning(frame: Int)
+    case wifiConnected
+    case archiveAuthorizing
+    case archiveUnlocked
+}
+
 private enum BootASCIIArt {
-    static let archiveControlBox = """
+    static let archiveControlPanelMarker = "__ARCHIVE_CTRL_PANEL__"
+
+    private static let wifiSpinnerA = ["|", "/", "-", "\\"]
+    private static let wifiSpinnerB = ["|", "\\", "-", "/"]
+
+    static func archiveControlBox(phase: BootArchivePanelPhase) -> String {
+        switch phase {
+        case .wifiScanning(let frame):
+            let index = frame % 4
+            let spinnerA = wifiSpinnerA[index]
+            let spinnerB = wifiSpinnerB[index]
+            return """
+            ┌───────────────────────┬───────────────────────┐
+            │ /DEV/ARCHIVE_CTRL     │ /DEV/WIFI_SCAN         │
+            │ STATUS: LOCKED        │ STATUS: SCANNING       │
+            │ ACCESS: RESTRICTED    │ NETWORKS: --            │
+            │        ███████        │                       │
+            │       ██     ██       │      \(spinnerA)     \(spinnerB)          │
+            │       ██     ██       │                       │
+            │      ████████████     │                       │
+            │      ███  ██  ███     │                       │
+            │      ████████████     │ SIGNAL: SEARCHING      │
+            └───────────────────────┴───────────────────────┘
+            """
+
+        case .wifiConnected:
+            return archiveControlBoxConnected(leftStatus: "STATUS: LOCKED", leftAccess: "ACCESS: RESTRICTED")
+
+        case .archiveAuthorizing:
+            return archiveControlBoxConnected(leftStatus: "STATUS: AUTHORIZING...", leftAccess: "ACCESS: RESTRICTED")
+
+        case .archiveUnlocked:
+            return archiveControlBoxConnected(leftStatus: "STATUS: UNLOCKED", leftAccess: "ACCESS: OPEN")
+        }
+    }
+
+    private static func archiveControlBoxConnected(leftStatus: String, leftAccess: String) -> String {
+        """
         ┌───────────────────────┬───────────────────────┐
         │ /DEV/ARCHIVE_CTRL     │ /DEV/WIFI_SCAN         │
-         │ STATUS: LOCKED        │ STATUS: SCANNING      │
-        │ ACCESS: RESTRICTED    │ NETWORKS: --          │
-        │                        │                      │
-        │         ███████       │          ▄            │
-        │        ██     ██      │       ▄  █  ▄          │
-        │        ██     ██      │     ▄ █  █  █ ▄       │
-         │     ████████████     │       █  █  █         │
+        │ \(leftStatus.padding(toLength: 21, withPad: " ", startingAt: 0)) │ STATUS: CONNECTED      │
+        │ \(leftAccess.padding(toLength: 21, withPad: " ", startingAt: 0)) │ NETWORKS: UNRESOLVED_7342│
+        │        ███████        │          ▄            │
+        │      ██       ██      │       ▄  █  ▄         │
+        │      ██               │     ▄ █  █  █ ▄       │
+        │      ████████████     │       █  █  █         │
         │      ███  ██  ███     │          █            │
-        │      ████████████     │   SIGNAL: SEARCHING   │
-         └───────────────────────┴───────────────────────┘
-    """
+        │      ████████████     │ SIGNAL: VERIFIED       │
+        └───────────────────────┴───────────────────────┘
+        """
+    }
 
     static let archiveFoundBlock = """
     ARCHIVE ID: DC-00000001
@@ -1040,12 +1193,12 @@ private enum BootASCIIArt {
 
     static let decryptProgressLines = [
         "...10% ███",
-        "...20% ██████",
-        "...30% █████████",
-        "...50% ███████████████",
-        "...70% █████████████████████",
-        "...90% ███████████████████████████",
-        "...100% ██████████████████████████████",
+        "...23% ██████",
+        "...38% █████████",
+        "...50% ███████/████████",
+        "...74% █████████████████████",
+        "...91% ███████████████████████████",
+        "...99,8% ████████████████████████████",
     ]
 }
 
@@ -1053,7 +1206,6 @@ private struct TerminalASCIIBlockView: View {
     let content: String
     let color: Color
     var pulseOnAppear: Bool = false
-    var wifiScanActive: Bool = false
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -1077,7 +1229,6 @@ private struct TerminalASCIIBlockView: View {
                 )
         )
         .bootPulse(active: pulseOnAppear, color: color)
-        .modifier(BootWiFiScanPulseModifier(isActive: wifiScanActive, color: color))
     }
 }
 
@@ -1086,6 +1237,11 @@ private struct TerminalASCIIBlockView: View {
 private enum LoginField: Hashable {
     case name
     case purpose
+}
+
+private enum NewCountdownField: Hashable {
+    case title
+    case matter
 }
 
 private struct BootOperatorLoginView: View {
@@ -1121,6 +1277,7 @@ private struct BootOperatorLoginView: View {
                 field: .name,
                 focusedField: focusedField,
                 isInteractive: isInteractive,
+                isLastInForm: false,
                 color: color,
                 onSubmit: onAuthenticate,
                 onNext: { focusedField.wrappedValue = .purpose }
@@ -1131,6 +1288,7 @@ private struct BootOperatorLoginView: View {
                 field: .purpose,
                 focusedField: focusedField,
                 isInteractive: isInteractive,
+                isLastInForm: true,
                 color: color,
                 onSubmit: onAuthenticate,
                 onNext: { focusedField.wrappedValue = .purpose }
@@ -1178,14 +1336,15 @@ private struct BootOperatorLoginView: View {
     }
 }
 
-private struct TerminalInputLine: View {
+private struct TerminalInputLine<Field: Hashable>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let label: String
     @Binding var text: String
-    let field: LoginField
-    var focusedField: FocusState<LoginField?>.Binding
+    let field: Field
+    var focusedField: FocusState<Field?>.Binding
     let isInteractive: Bool
+    let isLastInForm: Bool
     let color: Color
     let onSubmit: () -> Void
     let onNext: () -> Void
@@ -1239,13 +1398,13 @@ private struct TerminalInputLine: View {
                         .tint(.clear)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .submitLabel(field == .name ? .next : .continue)
+                        .submitLabel(isLastInForm ? .continue : .next)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .onSubmit {
-                            if field == .name {
-                                onNext()
-                            } else {
+                            if isLastInForm {
                                 onSubmit()
+                            } else {
+                                onNext()
                             }
                         }
                 }
@@ -1470,6 +1629,317 @@ private struct BootSettingsPanel: View {
     }
 }
 
+private struct BootNewCountdownPanel: View {
+    let color: Color
+    @Binding var title: String
+    @Binding var matter: String
+    var focusedField: FocusState<NewCountdownField?>.Binding
+    let onContinue: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            panelTitleBar
+                .padding(.bottom, 10)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(
+                        """
+                        DoomClock does not predict the end.
+                        It helps you observe what you learn before something ends.
+                        """
+                    )
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(color.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                    Text("What is ending?")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(color.opacity(0.88))
+
+                    TerminalInputLine(
+                        label: "Title:",
+                        text: $title,
+                        field: .title,
+                        focusedField: focusedField,
+                        isInteractive: true,
+                        isLastInForm: false,
+                        color: color,
+                        onSubmit: onContinue,
+                        onNext: { focusedField.wrappedValue = .matter }
+                    )
+
+                    Text("Optional:")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(color.opacity(0.52))
+                        .padding(.top, 2)
+
+                    TerminalInputLine(
+                        label: "Why does it matter?",
+                        text: $matter,
+                        field: .matter,
+                        focusedField: focusedField,
+                        isInteractive: true,
+                        isLastInForm: true,
+                        color: color,
+                        onSubmit: onContinue,
+                        onNext: { focusedField.wrappedValue = .matter }
+                    )
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 200)
+
+            HStack(spacing: 10) {
+                panelActionButton(title: "[ CONTINUE ]", prominent: true, action: onContinue)
+                panelActionButton(title: "[ CLOSE ]", prominent: false, action: onClose)
+            }
+            .padding(.top, 12)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color.black.opacity(0.34))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(color.opacity(0.55), lineWidth: 1.5)
+        )
+        .shadow(color: color.opacity(0.32), radius: 10, y: 2)
+        .shadow(color: color.opacity(0.14), radius: 3, y: 0)
+    }
+
+    private var panelTitleBar: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("NEW COUNTDOWN / DEFINE THE END")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundStyle(color.opacity(0.94))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+
+                Spacer(minLength: 8)
+
+                Text("[ ACTIVE WINDOW ]")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(color.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+
+            Rectangle()
+                .fill(color.opacity(0.22))
+                .frame(height: 1)
+        }
+    }
+
+    private func panelActionButton(title: String, prominent: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: prominent ? .bold : .semibold, design: .monospaced))
+                .foregroundStyle(color.opacity(prominent ? 0.92 : 0.62))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(color.opacity(prominent ? 0.5 : 0.32), lineWidth: 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(color.opacity(prominent ? 0.06 : 0.03))
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private extension String {
+    /// Trims code-indentation from multiline help copy while preserving paragraph breaks.
+    var helpPanelText: String {
+        split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
+    }
+}
+
+private struct BootHelpPanel: View {
+    let color: Color
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            helpTitleBar
+                .padding(.bottom, 10)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    helpSection(
+                        title: "WHAT IS DOOMCLOCK?",
+                        body: """
+                        DoomClock is not a prediction system.
+
+                        It does not know the future.
+                        It does not determine endings.
+
+                        It helps you observe what you learn
+                        between the beginning of something
+                        and its end.
+                        """.helpPanelText
+                    )
+
+                    helpSection(
+                        title: "COUNTDOWN",
+                        body: """
+                        A countdown represents the expected
+                        end of something.
+
+                        The thing may be serious,
+                        trivial, real, symbolic,
+                        or completely fictional.
+
+                        The lesson is what matters.
+                        """.helpPanelText
+                    )
+
+                    helpSection(
+                        title: "THREAT LEVEL",
+                        body: """
+                        Threat Levels are symbolic.
+
+                        They describe perspective,
+                        not danger.
+
+                        Example:
+
+                        THE TEA IS STILL WARM
+
+                        Meaning:
+                        there is still time.
+                        """.helpPanelText
+                    )
+
+                    helpSection(
+                        title: "THE REGISTRY",
+                        body: """
+                        The Registry records incidents,
+                        lessons and endings.
+
+                        Its existence has never been
+                        officially confirmed.
+
+                        This has not stopped anyone
+                        from using it.
+                        """.helpPanelText
+                    )
+
+                    helpSection(
+                        title: "ARCHIVE",
+                        body: """
+                        The Archive contains incidents
+                        and lessons left behind.
+
+                        Some are real.
+                        Some are fictional.
+
+                        The Archive makes no distinction.
+                        """.helpPanelText
+                    )
+
+                    helpSection(
+                        title: "OPERATOR",
+                        body: """
+                        The person currently using
+                        DoomClock OS.
+
+                        Possibly you.
+                        """.helpPanelText
+                    )
+
+                    helpSection(
+                        title: "REMEMBER",
+                        body: """
+                        Time doesn't end things.
+
+                        It reveals them.
+                        """.helpPanelText
+                    )
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 220)
+
+            Button(action: onClose) {
+                Text("[ CLOSE ]")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundStyle(color.opacity(0.92))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .stroke(color.opacity(0.5), lineWidth: 1)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(color.opacity(0.06))
+                            )
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 12)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color.black.opacity(0.34))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(color.opacity(0.55), lineWidth: 1.5)
+        )
+        .shadow(color: color.opacity(0.32), radius: 10, y: 2)
+        .shadow(color: color.opacity(0.14), radius: 3, y: 0)
+    }
+
+    private var helpTitleBar: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("HELP / OPERATOR MANUAL")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundStyle(color.opacity(0.94))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+
+                Spacer(minLength: 8)
+
+                Text("[ ACTIVE WINDOW ]")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(color.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+
+            Rectangle()
+                .fill(color.opacity(0.22))
+                .frame(height: 1)
+        }
+    }
+
+    private func helpSection(title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(color.opacity(0.88))
+            Text(body)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(color.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 private struct BootDashboardWidthKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
@@ -1480,8 +1950,9 @@ private struct BootDashboardWidthKey: PreferenceKey {
 
 private struct BootDashboardView: View {
     let color: Color
-    var isSettingsEnabled: Bool = false
-    var isLogoutEnabled: Bool = false
+    var isDesktopActionsEnabled: Bool = false
+    let onNewCountdown: () -> Void
+    let onHelp: () -> Void
     let onSettings: () -> Void
     let onLogout: () -> Void
 
@@ -1532,10 +2003,11 @@ private struct BootDashboardView: View {
     private var dashboardPanels: some View {
         BootDashboardPanel(title: "FINAL STATE (LOOP)", color: color) {
             VStack(alignment: .leading, spacing: 4) {
-                dashboardMenuItem("> NEW COUNTDOWN", highlighted: false)
+                dashboardNewCountdownItem
                 dashboardMenuItem("> ACTIVE COUNTDOWNS")
                 dashboardMenuItem("> ARCHIVE BROWSER")
                 dashboardMenuItem("> INCIDENT OF THE DAY")
+                dashboardHelpItem
                 dashboardSettingsItem
                 dashboardLogoutItem
             }
@@ -1574,26 +2046,48 @@ private struct BootDashboardView: View {
         }
     }
 
+    private var dashboardNewCountdownItem: some View {
+        Button(action: onNewCountdown) {
+            Text("> NEW COUNTDOWN")
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(color.opacity(isDesktopActionsEnabled ? 0.98 : 0.62))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isDesktopActionsEnabled)
+    }
+
+    private var dashboardHelpItem: some View {
+        Button(action: onHelp) {
+            Text("> HELP")
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(color.opacity(isDesktopActionsEnabled ? 0.72 : 0.62))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isDesktopActionsEnabled)
+    }
+
     private var dashboardSettingsItem: some View {
         Button(action: onSettings) {
             Text("> SETTINGS")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundStyle(color.opacity(isSettingsEnabled ? 0.72 : 0.62))
+                .foregroundStyle(color.opacity(isDesktopActionsEnabled ? 0.72 : 0.62))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
-        .disabled(!isSettingsEnabled)
+        .disabled(!isDesktopActionsEnabled)
     }
 
     private var dashboardLogoutItem: some View {
         Button(action: onLogout) {
             Text("> LOGOUT")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundStyle(color.opacity(isLogoutEnabled ? 0.72 : 0.62))
+                .foregroundStyle(color.opacity(isDesktopActionsEnabled ? 0.72 : 0.62))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
-        .disabled(!isLogoutEnabled)
+        .disabled(!isDesktopActionsEnabled)
     }
 
     private func dashboardMenuItem(_ text: String, highlighted: Bool = false) -> some View {
@@ -1985,39 +2479,6 @@ private struct BootPulseModifier: ViewModifier {
                     glowAmount = 0
                 }
             }
-    }
-}
-
-private struct BootWiFiScanPulseModifier: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    let isActive: Bool
-    let color: Color
-
-    @State private var scanOpacity: Double = 1
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(scanOpacity)
-            .shadow(color: isActive && !reduceMotion ? color.opacity((2 - scanOpacity) * 0.18) : .clear, radius: 2)
-            .onAppear {
-                updateScanAnimation()
-            }
-            .onChange(of: isActive) { _, _ in
-                updateScanAnimation()
-            }
-    }
-
-    private func updateScanAnimation() {
-        guard isActive, !reduceMotion else {
-            scanOpacity = 1
-            return
-        }
-
-        scanOpacity = 1
-        withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-            scanOpacity = 0.78
-        }
     }
 }
 
