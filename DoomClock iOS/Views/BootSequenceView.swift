@@ -18,6 +18,14 @@ private enum ShutdownStage {
     case black
 }
 
+private enum PowerOnStage {
+    case dot
+    case pulse
+    case line
+    case expand
+    case complete
+}
+
 private enum DesktopPanel {
     case settings
 }
@@ -50,6 +58,11 @@ private enum OperatorIdentityStore {
         defaults.removeObject(forKey: nameKey)
         defaults.removeObject(forKey: purposeKey)
     }
+}
+
+private enum BootPreferencesStore {
+    static let alwaysShowBootSequenceKey = "doomclock.alwaysShowBootSequence"
+    static let enableCRTEffectsKey = "doomclock.enableCRTEffects"
 }
 
 struct BootSequenceView: View {
@@ -85,23 +98,16 @@ struct BootSequenceView: View {
     @State private var shutdownCollapseScale: CGFloat = 1
     @State private var shutdownDotOpacity: Double = 1
     @State private var activeDesktopPanel: DesktopPanel?
-    @State private var alwaysShowBootSequence = true
-    @State private var enableCRTEffects = true
+    @AppStorage(BootPreferencesStore.alwaysShowBootSequenceKey) private var alwaysShowBootSequence = true
+    @AppStorage(BootPreferencesStore.enableCRTEffectsKey) private var enableCRTEffects = true
+    @State private var hasCompletedPowerOn = false
+    @State private var powerOnStage: PowerOnStage = .dot
+    @State private var powerOnDotPulseScale: CGFloat = 1
+    @State private var powerOnExpandProgress: CGFloat = 0
+    @State private var powerOnOverlayOpacity: Double = 1
+    @State private var powerOnTask: Task<Void, Never>?
 
     private let maxIdleArtifacts = 8
-
-    private var crtScanMode: BootCRTScanMode {
-        switch bootPhase {
-        case .bootingPhase1:
-            return .bootingPhase1
-        case .awaitingOperator:
-            return .awaitingOperator
-        case .bootingPhase2:
-            return .bootingPhase2
-        case .complete:
-            return .complete
-        }
-    }
 
     private let terminalColor = DoomMode.suspicious.primaryColor
     private let phaseOneProgressCap = 0.65
@@ -118,12 +124,7 @@ struct BootSequenceView: View {
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
 
-            ScanlineOverlay(color: terminalColor)
-
             Group {
-                CRTScanBeam(color: terminalColor, mode: crtScanMode)
-                    .opacity(bootExitOpacity)
-
                 VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -178,7 +179,7 @@ struct BootSequenceView: View {
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        guard !isShuttingDown else { return }
+                        guard hasCompletedPowerOn, !isShuttingDown else { return }
                         accelerateCurrentPhase()
                     }
                     .onChange(of: visiblePreLoginCount) { _, _ in
@@ -210,7 +211,31 @@ struct BootSequenceView: View {
             BootFlashOverlay(color: terminalColor, trigger: failFlashTrigger)
             }
             .scaleEffect(y: shutdownCollapseScale, anchor: .center)
-            .opacity(shutdownStage == .none || shutdownStage == .collapse ? 1 : 0)
+            .opacity(hasCompletedPowerOn && (shutdownStage == .none || shutdownStage == .collapse) ? 1 : 0)
+
+            if hasCompletedPowerOn, enableCRTEffects {
+                ScanlineOverlay(color: terminalColor)
+                    .allowsHitTesting(false)
+                    .zIndex(1)
+            }
+
+            if hasCompletedPowerOn, enableCRTEffects {
+                CRTScanBeam(color: terminalColor)
+                    .opacity(bootExitOpacity)
+                    .allowsHitTesting(false)
+                    .zIndex(1)
+            }
+
+            if !hasCompletedPowerOn {
+                CRTPowerOnOverlay(
+                    stage: powerOnStage,
+                    color: terminalColor,
+                    dotPulseScale: powerOnDotPulseScale,
+                    expandProgress: powerOnExpandProgress
+                )
+                .opacity(powerOnOverlayOpacity)
+                .zIndex(2)
+            }
 
             if isShuttingDown {
                 CRTShutdownOverlay(
@@ -218,13 +243,17 @@ struct BootSequenceView: View {
                     color: terminalColor,
                     dotOpacity: shutdownDotOpacity
                 )
+                .zIndex(3)
             }
         }
         .onAppear {
-            loadOperatorIdentity()
-            startBootSequence()
+            powerOnTask = Task {
+                await runPowerOnSequence()
+            }
         }
         .onDisappear {
+            powerOnTask?.cancel()
+            powerOnTask = nil
             bootTask?.cancel()
             bootTask = nil
             stopIdleArtifacts()
@@ -369,10 +398,83 @@ struct BootSequenceView: View {
     }
 
     private func startBootSequence() {
+        guard hasCompletedPowerOn else { return }
         bootTask?.cancel()
         bootTask = Task {
             await runPhase1()
         }
+    }
+
+    @MainActor
+    private func runPowerOnSequence() async {
+        loadOperatorIdentity()
+
+        if reduceMotion {
+            hasCompletedPowerOn = true
+            powerOnStage = .complete
+            powerOnOverlayOpacity = 0
+            startBootSequence()
+            return
+        }
+
+        powerOnStage = .dot
+        powerOnDotPulseScale = 1
+        powerOnExpandProgress = 0
+        powerOnOverlayOpacity = 1
+
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        if Task.isCancelled { return }
+
+        powerOnStage = .pulse
+        for _ in 0..<2 {
+            withAnimation(.easeOut(duration: 0.12)) {
+                powerOnDotPulseScale = 1.38
+            }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            if Task.isCancelled { return }
+
+            withAnimation(.easeIn(duration: 0.13)) {
+                powerOnDotPulseScale = 1
+            }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            if Task.isCancelled { return }
+        }
+
+        withAnimation(.easeOut(duration: 0.12)) {
+            powerOnDotPulseScale = 1.32
+        }
+        try? await Task.sleep(nanoseconds: 180_000_000)
+        if Task.isCancelled { return }
+
+        withAnimation(.easeIn(duration: 0.12)) {
+            powerOnDotPulseScale = 1
+        }
+        try? await Task.sleep(nanoseconds: 120_000_000)
+        if Task.isCancelled { return }
+
+        withAnimation(.easeOut(duration: 0.22)) {
+            powerOnStage = .line
+        }
+        try? await Task.sleep(nanoseconds: 220_000_000)
+        if Task.isCancelled { return }
+
+        withAnimation(.easeOut(duration: 0.32)) {
+            powerOnStage = .expand
+            powerOnExpandProgress = 1
+        }
+        playSelectionHaptic()
+        try? await Task.sleep(nanoseconds: 320_000_000)
+        if Task.isCancelled { return }
+
+        powerOnStage = .complete
+        withAnimation(.easeOut(duration: 0.25)) {
+            powerOnOverlayOpacity = 0
+        }
+        hasCompletedPowerOn = true
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        if Task.isCancelled { return }
+
+        startBootSequence()
     }
 
     @MainActor
@@ -478,6 +580,8 @@ struct BootSequenceView: View {
 
     @MainActor
     private func accelerateCurrentPhase() {
+        guard hasCompletedPowerOn else { return }
+
         switch bootPhase {
         case .bootingPhase1:
             guard isAnimating || visiblePreLoginCount < preLoginSteps.count else { return }
@@ -872,7 +976,7 @@ struct BootSequenceView: View {
             .terminalLine("> Calibrating temporal parameters...             [ OK ]"),
             .terminalLine("> Verifying certainty module...                  [ FAIL ]"),
             .terminalLine("> Certainty unavailable."),
-            .terminalLine("> Loading curiosity instead...                   [ OK ]"),
+            .terminalLine("> Loading curiosity instead...                  [ OK ]"),
             .terminalLine("> Connecting to The Registry...                  [ OK ]"),
             .terminalLine("> Locating unfinished lessons...                 [ OK ]"),
             .terminalLine("> Mounting encrypted volumes...                  [ OK ]"),
@@ -907,18 +1011,18 @@ struct BootSequenceView: View {
 
 private enum BootASCIIArt {
     static let archiveControlBox = """
-    ┌───────────────────────┬───────────────────────┐
-    │ /DEV/ARCHIVE_CTRL     │ /DEV/WIFI_SCAN        │
-    │ STATUS: LOCKED        │ STATUS: SCANNING      │
-    │ ACCESS: RESTRICTED    │ NETWORKS: --          │
-    │                       │                       │
-    │       ███████         │        ▄              │
-    │      ██     ██        │     ▄  █  ▄           │
-    │      ██     ██        │   ▄ █  █  █ ▄         │
-    │    ████████████       │     █  █  █           │
-    │    ███  ██  ███       │        █              │
-    │    ████████████       │   SIGNAL: SEARCHING   │
-    └───────────────────────┴───────────────────────┘
+        ┌───────────────────────┬───────────────────────┐
+        │ /DEV/ARCHIVE_CTRL     │ /DEV/WIFI_SCAN         │
+         │ STATUS: LOCKED        │ STATUS: SCANNING      │
+        │ ACCESS: RESTRICTED    │ NETWORKS: --          │
+        │                        │                      │
+        │         ███████       │          ▄            │
+        │        ██     ██      │       ▄  █  ▄          │
+        │        ██     ██      │     ▄ █  █  █ ▄       │
+         │     ████████████     │       █  █  █         │
+        │      ███  ██  ███     │          █            │
+        │      ████████████     │   SIGNAL: SEARCHING   │
+         └───────────────────────┴───────────────────────┘
     """
 
     static let archiveFoundBlock = """
@@ -1011,8 +1115,26 @@ private struct BootOperatorLoginView: View {
                 .foregroundStyle(color.opacity(0.82))
                 .padding(.top, 4)
 
-            terminalField(label: "Name:", text: $operatorName, field: .name)
-            terminalField(label: "Purpose:", text: $operatorPurpose, field: .purpose)
+            TerminalInputLine(
+                label: "Name:",
+                text: $operatorName,
+                field: .name,
+                focusedField: focusedField,
+                isInteractive: isInteractive,
+                color: color,
+                onSubmit: onAuthenticate,
+                onNext: { focusedField.wrappedValue = .purpose }
+            )
+            TerminalInputLine(
+                label: "Purpose:",
+                text: $operatorPurpose,
+                field: .purpose,
+                focusedField: focusedField,
+                isInteractive: isInteractive,
+                color: color,
+                onSubmit: onAuthenticate,
+                onNext: { focusedField.wrappedValue = .purpose }
+            )
 
             if isInteractive {
                 Button(action: onAuthenticate) {
@@ -1054,36 +1176,85 @@ private struct BootOperatorLoginView: View {
                 )
         )
     }
+}
 
-    @ViewBuilder
-    private func terminalField(label: String, text: Binding<String>, field: LoginField) -> some View {
+private struct TerminalInputLine: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let label: String
+    @Binding var text: String
+    let field: LoginField
+    var focusedField: FocusState<LoginField?>.Binding
+    let isInteractive: Bool
+    let color: Color
+    let onSubmit: () -> Void
+    let onNext: () -> Void
+
+    private var isFocused: Bool {
+        focusedField.wrappedValue == field
+    }
+
+    private var showBlockCursor: Bool {
+        isInteractive && isFocused
+    }
+
+    private var fieldFont: Font {
+        .system(size: 13, weight: .medium, design: .monospaced)
+    }
+
+    var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
             Text(label)
-                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                .font(fieldFont)
                 .foregroundStyle(color.opacity(0.72))
 
-            if isInteractive {
-                TextField("", text: text)
-                    .focused(focusedField, equals: field)
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
-                    .foregroundStyle(color.opacity(0.92))
-                    .tint(color)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(field == .name ? .next : .continue)
-                    .onSubmit {
-                        if field == .name {
-                            focusedField.wrappedValue = .purpose
-                        } else {
-                            onAuthenticate()
+            ZStack(alignment: .leading) {
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    if isInteractive {
+                        Text(text)
+                            .font(fieldFont)
+                            .foregroundStyle(color.opacity(0.92))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+
+                        if showBlockCursor {
+                            TerminalBlockCursor(color: color)
                         }
+                    } else {
+                        Text(text.isEmpty ? "—" : text)
+                            .font(fieldFont)
+                            .foregroundStyle(color.opacity(0.55))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
-            } else {
-                Text(text.wrappedValue.isEmpty ? "—" : text.wrappedValue)
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
-                    .foregroundStyle(color.opacity(0.55))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .allowsHitTesting(false)
+
+                if isInteractive {
+                    TextField("", text: $text)
+                        .focused(focusedField, equals: field)
+                        .font(fieldFont)
+                        .foregroundStyle(Color.clear)
+                        .tint(.clear)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(field == .name ? .next : .continue)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .onSubmit {
+                            if field == .name {
+                                onNext()
+                            } else {
+                                onSubmit()
+                            }
+                        }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard isInteractive else { return }
+                focusedField.wrappedValue = field
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1093,6 +1264,31 @@ private struct BootOperatorLoginView: View {
                 .fill(color.opacity(isInteractive ? 0.35 : 0.18))
                 .frame(height: 1)
         }
+    }
+}
+
+private struct TerminalBlockCursor: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isVisible = true
+
+    let color: Color
+
+    var body: some View {
+        Rectangle()
+            .fill(color.opacity(isVisible ? 0.95 : 0.2))
+            .frame(width: 10, height: 15)
+            .shadow(color: color.opacity(0.35), radius: 2)
+            .onAppear {
+                guard !reduceMotion else {
+                    isVisible = true
+                    return
+                }
+
+                isVisible = true
+                withAnimation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)) {
+                    isVisible = false
+                }
+            }
     }
 }
 
@@ -1110,6 +1306,7 @@ private struct BootFinalRevealView: View {
             VStack(spacing: 6) {
                 Text("Time doesn't end things.")
                 Text("It reveals them.")
+                Text("The Archive is open")
             }
             .font(.system(size: 13, weight: .medium, design: .monospaced))
             .foregroundStyle(color.opacity(0.72))
@@ -1335,7 +1532,7 @@ private struct BootDashboardView: View {
     private var dashboardPanels: some View {
         BootDashboardPanel(title: "FINAL STATE (LOOP)", color: color) {
             VStack(alignment: .leading, spacing: 4) {
-                dashboardMenuItem("> NEW COUNTDOWN", highlighted: true)
+                dashboardMenuItem("> NEW COUNTDOWN", highlighted: false)
                 dashboardMenuItem("> ACTIVE COUNTDOWNS")
                 dashboardMenuItem("> ARCHIVE BROWSER")
                 dashboardMenuItem("> INCIDENT OF THE DAY")
@@ -1686,118 +1883,51 @@ private struct BootEnterArchivePulseModifier: ViewModifier {
 
 // MARK: - Boot Animations
 
-private enum BootCRTScanMode: Equatable {
-    case bootingPhase1
-    case awaitingOperator
-    case bootingPhase2
-    case complete
-
-    var sweepDuration: Double {
-        switch self {
-        case .bootingPhase1:
-            return 3.4
-        case .bootingPhase2:
-            return 4.8
-        case .awaitingOperator:
-            return 5.6
-        case .complete:
-            return 7.6
-        }
-    }
-
-    var enablesBreathing: Bool {
-        self == .complete
-    }
-}
-
+/// CRT scan band: one full-screen sweep every `cycleDuration`, then idle until the next cycle.
 private struct CRTScanBeam: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let color: Color
-    let mode: BootCRTScanMode
 
-    @State private var beamProgress: CGFloat = 0
-    @State private var brightnessBoost: Double = 1
-    @State private var breatheTask: Task<Void, Never>?
+    private static let cycleDuration: TimeInterval = 10
+    private static let sweepDuration: TimeInterval = 3.4
+    private static var sweepPortion: Double { sweepDuration / cycleDuration }
 
     var body: some View {
-        GeometryReader { geometry in
-            if !reduceMotion {
-                LinearGradient(
-                    colors: beamGradientColors,
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: max(geometry.size.height * 0.1, 24))
-                .offset(y: beamProgress * (geometry.size.height + geometry.size.height * 0.1) - geometry.size.height * 0.05)
-                .blendMode(.screen)
-                .allowsHitTesting(false)
-                .onAppear {
-                    restartSweep()
-                    updateBreathing()
-                }
-                .onChange(of: mode) { _, _ in
-                    restartSweep()
-                    updateBreathing()
-                }
-                .onDisappear {
-                    breatheTask?.cancel()
-                    breatheTask = nil
+        TimelineView(.animation(minimumInterval: 1 / 60, paused: reduceMotion)) { timeline in
+            GeometryReader { geometry in
+                let cycleTime = timeline.date.timeIntervalSinceReferenceDate
+                    .truncatingRemainder(dividingBy: Self.cycleDuration)
+                let cyclePhase = cycleTime / Self.cycleDuration
+
+                if cyclePhase < Self.sweepPortion, geometry.size.height > 0 {
+                    let sweepProgress = cyclePhase / Self.sweepPortion
+                    let envelope = sin(sweepProgress * .pi)
+                    let beamHeight = max(geometry.size.height * 0.14, 40)
+                    let travel = geometry.size.height + beamHeight
+                    let y = sweepProgress * travel - beamHeight * 0.5
+
+                    LinearGradient(
+                        colors: [
+                            color.opacity(0),
+                            color.opacity(0.06 * envelope),
+                            color.opacity(0.14 * envelope),
+                            color.opacity(0.06 * envelope),
+                            color.opacity(0),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(width: geometry.size.width, height: beamHeight)
+                    .offset(y: y)
+                    .blendMode(.screen)
+                    .allowsHitTesting(false)
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
         .allowsHitTesting(false)
-    }
-
-    private var beamGradientColors: [Color] {
-        [
-            color.opacity(0),
-            color.opacity(0.05 * brightnessBoost),
-            color.opacity(0.12 * brightnessBoost),
-            color.opacity(0.05 * brightnessBoost),
-            color.opacity(0),
-        ]
-    }
-
-    private func restartSweep() {
-        guard !reduceMotion else { return }
-        beamProgress = 0
-        withAnimation(.linear(duration: mode.sweepDuration).repeatForever(autoreverses: false)) {
-            beamProgress = 1
-        }
-    }
-
-    private func updateBreathing() {
-        breatheTask?.cancel()
-        breatheTask = nil
-        brightnessBoost = 1
-
-        guard mode.enablesBreathing, !reduceMotion else { return }
-
-        breatheTask = Task {
-            while !Task.isCancelled {
-                let pause = UInt64.random(in: 3_000_000_000...6_500_000_000)
-                try? await Task.sleep(nanoseconds: pause)
-                if Task.isCancelled { return }
-
-                let targetBoost = Double.random(in: 1.05...1.10)
-                await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.85)) {
-                        brightnessBoost = targetBoost
-                    }
-                }
-
-                try? await Task.sleep(nanoseconds: 900_000_000)
-                if Task.isCancelled { return }
-
-                await MainActor.run {
-                    withAnimation(.easeInOut(duration: 1.1)) {
-                        brightnessBoost = 1
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -1894,6 +2024,94 @@ private struct BootWiFiScanPulseModifier: ViewModifier {
 private extension View {
     func bootPulse(active: Bool, color: Color) -> some View {
         modifier(BootPulseModifier(active: active, color: color))
+    }
+}
+
+private struct CRTPowerOnOverlay: View {
+    let stage: PowerOnStage
+    let color: Color
+    let dotPulseScale: CGFloat
+    let expandProgress: CGFloat
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
+
+                powerOnBeam(in: geometry)
+                    .shadow(color: color.opacity(beamGlowOpacity), radius: beamGlowRadius)
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(true)
+    }
+
+    private var beamGlowOpacity: Double {
+        switch stage {
+        case .dot, .pulse:
+            return 0.75
+        case .line:
+            return 0.9
+        case .expand:
+            return 0.55 + Double(expandProgress) * 0.35
+        case .complete:
+            return 0
+        }
+    }
+
+    private var beamGlowRadius: CGFloat {
+        switch stage {
+        case .dot, .pulse:
+            return 6
+        case .line:
+            return 12
+        case .expand:
+            return 8 + expandProgress * 18
+        case .complete:
+            return 0
+        }
+    }
+
+    @ViewBuilder
+    private func powerOnBeam(in geometry: GeometryProxy) -> some View {
+        let centerY = geometry.size.height / 2
+
+        switch stage {
+        case .dot, .pulse:
+            Circle()
+                .fill(color.opacity(0.92))
+                .frame(width: 6, height: 6)
+                .scaleEffect(dotPulseScale)
+                .position(x: geometry.size.width / 2, y: centerY)
+
+        case .line:
+            Capsule()
+                .fill(color.opacity(0.95))
+                .frame(width: geometry.size.width - 16, height: 3)
+                .position(x: geometry.size.width / 2, y: centerY)
+
+        case .expand:
+            let expandedHeight = max(3, geometry.size.height * expandProgress)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            color.opacity(0.05),
+                            color.opacity(0.22),
+                            color.opacity(0.12),
+                            color.opacity(0.05),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: geometry.size.width, height: expandedHeight)
+                .position(x: geometry.size.width / 2, y: centerY)
+
+        case .complete:
+            EmptyView()
+        }
     }
 }
 
