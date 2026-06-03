@@ -28,4 +28,9 @@ enum OperatorIdentityStore {
 enum BootPreferencesStore {
     static let alwaysShowBootSequenceKey = "doomclock.alwaysShowBootSequence"
     static let enableCRTEffectsKey = "doomclock.enableCRTEffects"
+    static let enableSoundsKey = "doomclock.enableSounds"
+    static let enableHapticsKey = "doomclock.enableHaptics"
+    static let enableBootAnimationsKey = "doomclock.enableBootAnimations"
+    static let showIncidentFeedKey = "doomclock.showIncidentFeed"
+    static let showDailyIncidentKey = "doomclock.showDailyIncident"
 }

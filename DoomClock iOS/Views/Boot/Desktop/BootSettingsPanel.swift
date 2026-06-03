@@ -7,6 +7,11 @@ struct BootSettingsPanel: View {
     let reduceMotionActive: Bool
     @Binding var alwaysShowBootSequence: Bool
     @Binding var enableCRTEffects: Bool
+    @Binding var enableBootAnimations: Bool
+    @Binding var enableSounds: Bool
+    @Binding var enableHaptics: Bool
+    @Binding var showIncidentFeed: Bool
+    @Binding var showDailyIncident: Bool
     let onClose: () -> Void
     let onClearIdentity: () -> Void
     let onToggleHaptic: () -> Void
@@ -17,40 +22,28 @@ struct BootSettingsPanel: View {
                 .padding(.bottom, 10)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    settingsInfoRow(label: "OPERATOR NAME:", value: operatorNameDisplay)
-                    settingsInfoRow(label: "PURPOSE:", value: purposeDisplay)
+                VStack(alignment: .leading, spacing: 0) {
+                    operatorSection
+                        .padding(.bottom, 18)
 
-                    settingsToggleRow(
-                        label: "ALWAYS SHOW BOOT SEQUENCE",
-                        isOn: alwaysShowBootSequence
-                    ) {
-                        alwaysShowBootSequence.toggle()
-                        onToggleHaptic()
-                    }
+                    systemSection
+                        .padding(.bottom, 18)
 
-                    settingsToggleRow(
-                        label: "CRT EFFECTS",
-                        isOn: enableCRTEffects
-                    ) {
-                        enableCRTEffects.toggle()
-                        onToggleHaptic()
-                    }
+                    experienceSection
+                        .padding(.bottom, 18)
 
-                    settingsInfoRow(
-                        label: "REDUCE MOTION:",
-                        value: reduceMotionActive ? "SYSTEM ACTIVE" : "SYSTEM CONTROLLED"
-                    )
-                    settingsInfoRow(label: "ARCHIVE ACCESS:", value: "LOCAL ONLY")
-                    settingsInfoRow(label: "REGISTRY LINK:", value: "UNVERIFIED")
+                    archiveSection
+                        .padding(.bottom, 18)
+
+                    aboutSection
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxHeight: 180)
+            .frame(maxHeight: 300)
 
             HStack(spacing: 10) {
                 settingsActionButton(title: "[ CLOSE ]", prominent: true, action: onClose)
-                settingsActionButton(title: "[ CLEAR IDENTITY ]", prominent: false, action: onClearIdentity)
+                settingsActionButton(title: "[ CLEAR OPERATOR IDENTITY ]", prominent: false, action: onClearIdentity)
             }
             .padding(.top, 12)
         }
@@ -68,10 +61,110 @@ struct BootSettingsPanel: View {
         .shadow(color: color.opacity(0.14), radius: 3, y: 0)
     }
 
+    private var operatorSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            settingsSectionHeader("[ OPERATOR ]")
+            settingsInfoRow(label: "NAME:", value: operatorNameDisplay)
+            settingsInfoRow(label: "PURPOSE:", value: purposeDisplay)
+        }
+    }
+
+    private var systemSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            settingsSectionHeader("[ SYSTEM ]")
+
+            settingsToggleRow(
+                label: "ALWAYS SHOW BOOT SEQUENCE",
+                isOn: alwaysShowBootSequence
+            ) {
+                alwaysShowBootSequence.toggle()
+                onToggleHaptic()
+            }
+
+            settingsToggleRow(
+                label: "CRT EFFECTS",
+                isOn: enableCRTEffects
+            ) {
+                enableCRTEffects.toggle()
+                onToggleHaptic()
+            }
+
+            settingsToggleRow(
+                label: "BOOT ANIMATIONS",
+                isOn: enableBootAnimations
+            ) {
+                enableBootAnimations.toggle()
+                onToggleHaptic()
+            }
+
+            settingsToggleRow(
+                label: "SOUNDS",
+                isOn: enableSounds
+            ) {
+                enableSounds.toggle()
+                onToggleHaptic()
+            }
+
+            settingsToggleRow(
+                label: "HAPTICS",
+                isOn: enableHaptics
+            ) {
+                enableHaptics.toggle()
+                onToggleHaptic()
+            }
+
+            settingsInfoRow(
+                label: "REDUCE MOTION:",
+                value: reduceMotionActive ? "SYSTEM ACTIVE" : "SYSTEM CONTROLLED"
+            )
+        }
+    }
+
+    private var experienceSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            settingsSectionHeader("[ EXPERIENCE ]")
+
+            settingsToggleRow(
+                label: "SHOW INCIDENT FEED",
+                isOn: showIncidentFeed
+            ) {
+                showIncidentFeed.toggle()
+                onToggleHaptic()
+            }
+
+            settingsToggleRow(
+                label: "RECEIVE INCIDENT OF THE DAY",
+                isOn: showDailyIncident
+            ) {
+                showDailyIncident.toggle()
+                onToggleHaptic()
+            }
+        }
+    }
+
+    private var archiveSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            settingsSectionHeader("[ ARCHIVE ]")
+            settingsInfoRow(label: "ARCHIVE ACCESS:", value: "LOCAL ONLY")
+            settingsInfoRow(label: "DATA STORAGE:", value: "THIS DEVICE")
+            settingsInfoRow(label: "REGISTRY LINK:", value: "UNVERIFIED")
+            settingsInfoRow(label: "ARCHIVE CYCLE:", value: "7342")
+        }
+    }
+
+    private var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            settingsSectionHeader("[ ABOUT ]")
+            settingsInfoRow(label: "DOOMCLOCK OS:", value: "∆7342.11")
+            settingsInfoRow(label: "REGISTRY REVISION:", value: "UNRESOLVED")
+            settingsInfoRow(label: "BUILD:", value: "7342")
+        }
+    }
+
     private var settingsTitleBar: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("SETTINGS / OPERATOR PREFERENCES")
+                Text("SYSTEM SETTINGS / OPERATOR PROFILE")
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                     .foregroundStyle(color.opacity(0.94))
                     .lineLimit(2)
@@ -90,6 +183,20 @@ struct BootSettingsPanel: View {
                 .fill(color.opacity(0.22))
                 .frame(height: 1)
         }
+    }
+
+    private func settingsSectionHeader(_ title: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(color.opacity(0.88))
+                .shadow(color: color.opacity(0.18), radius: 1)
+
+            Rectangle()
+                .fill(color.opacity(0.14))
+                .frame(height: 1)
+        }
+        .padding(.bottom, 2)
     }
 
     private func settingsInfoRow(label: String, value: String) -> some View {

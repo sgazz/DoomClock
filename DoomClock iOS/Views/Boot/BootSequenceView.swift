@@ -39,6 +39,11 @@ struct BootSequenceView: View {
     @State private var activeDesktopPanel: DesktopPanel?
     @AppStorage(BootPreferencesStore.alwaysShowBootSequenceKey) private var alwaysShowBootSequence = true
     @AppStorage(BootPreferencesStore.enableCRTEffectsKey) private var enableCRTEffects = true
+    @AppStorage(BootPreferencesStore.enableSoundsKey) private var enableSounds = true
+    @AppStorage(BootPreferencesStore.enableHapticsKey) private var enableHaptics = true
+    @AppStorage(BootPreferencesStore.enableBootAnimationsKey) private var enableBootAnimations = true
+    @AppStorage(BootPreferencesStore.showIncidentFeedKey) private var showIncidentFeed = true
+    @AppStorage(BootPreferencesStore.showDailyIncidentKey) private var showDailyIncident = true
     @State private var hasCompletedPowerOn = false
     @State private var powerOnStage: PowerOnStage = .dot
     @State private var powerOnDotPulseScale: CGFloat = 1
@@ -262,9 +267,14 @@ struct BootSequenceView: View {
                                 reduceMotionActive: reduceMotion,
                                 alwaysShowBootSequence: $alwaysShowBootSequence,
                                 enableCRTEffects: $enableCRTEffects,
+                                enableBootAnimations: $enableBootAnimations,
+                                enableSounds: $enableSounds,
+                                enableHaptics: $enableHaptics,
+                                showIncidentFeed: $showIncidentFeed,
+                                showDailyIncident: $showDailyIncident,
                                 onClose: closeDesktopPanel,
                                 onClearIdentity: clearIdentityFromSettings,
-                                onToggleHaptic: playSelectionHaptic
+                                onToggleHaptic: { playHaptic(.selection) }
                             )
                             .zIndex(1)
                         }
@@ -426,7 +436,7 @@ struct BootSequenceView: View {
             powerOnStage = .expand
             powerOnExpandProgress = 1
         }
-        playSelectionHaptic()
+        playHaptic(.bootStep)
         try? await Task.sleep(nanoseconds: 240_000_000)
         if Task.isCancelled { return }
 
@@ -483,7 +493,7 @@ struct BootSequenceView: View {
 
         isAnimating = false
         bootPhase = .awaitingOperator
-        playSelectionHaptic()
+        playHaptic(.bootStep)
     }
 
     @MainActor
@@ -534,7 +544,7 @@ struct BootSequenceView: View {
         OperatorIdentityStore.save(name: operatorName, purpose: operatorPurpose)
         hasAuthenticated = true
         focusedLoginField = nil
-        playSuccessHaptic()
+        playHaptic(.authenticate)
 
         bootPhase = .bootingPhase2
         visiblePostLoginCount = 0
@@ -562,7 +572,7 @@ struct BootSequenceView: View {
             progress = phaseOneProgressCap
             isAnimating = false
             bootPhase = .awaitingOperator
-            playSelectionHaptic()
+            playHaptic(.bootStep)
         case .bootingPhase2:
             guard isAnimating || visiblePostLoginCount < postLoginLines.count else { return }
             bootTask?.cancel()
@@ -648,30 +658,30 @@ struct BootSequenceView: View {
         resolvedPurposeLogLine = "> Purpose logged."
 
         if useWarningHaptic {
-            playWarningHaptic()
+            playHaptic(.clearIdentity)
         } else {
-            playSelectionHaptic()
+            playHaptic(.selection)
         }
     }
 
     @MainActor
     private func openSettings() {
         guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
-        playSelectionHaptic()
+        playHaptic(.panelOpen)
         activeDesktopPanel = .settings
     }
 
     @MainActor
     private func openHelp() {
         guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
-        playSelectionHaptic()
+        playHaptic(.panelOpen)
         activeDesktopPanel = .help
     }
 
     @MainActor
     private func openNewCountdown() {
         guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
-        playSelectionHaptic()
+        playHaptic(.panelOpen)
         activeDesktopPanel = .newCountdown
         if !reduceMotion {
             focusedCountdownField = .title
@@ -688,7 +698,7 @@ struct BootSequenceView: View {
 
     @MainActor
     private func closeDesktopPanel() {
-        playSelectionHaptic()
+        playHaptic(.panelClose)
         focusedCountdownField = nil
         activeDesktopPanel = nil
     }
@@ -714,7 +724,7 @@ struct BootSequenceView: View {
         guard !isExitingBoot, !isShuttingDown else { return }
 
         stopIdleArtifacts()
-        playSelectionHaptic()
+        playHaptic(.enterArchive)
         isExitingBoot = true
 
         if reduceMotion {
@@ -736,7 +746,7 @@ struct BootSequenceView: View {
         guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
 
         stopIdleArtifacts()
-        playSelectionHaptic()
+        playHaptic(.logout)
         activeDesktopPanel = nil
         isShuttingDown = true
         focusedLoginField = nil
@@ -879,31 +889,11 @@ struct BootSequenceView: View {
     private func playCompleteHapticIfNeeded() {
         guard !hasPlayedCompleteHaptic else { return }
         hasPlayedCompleteHaptic = true
-        playSelectionHaptic()
+        playHaptic(.bootComplete)
     }
 
-    private func playSelectionHaptic() {
-        #if os(iOS)
-        let generator = UISelectionFeedbackGenerator()
-        generator.prepare()
-        generator.selectionChanged()
-        #endif
-    }
-
-    private func playWarningHaptic() {
-        #if os(iOS)
-        let generator = UINotificationFeedbackGenerator()
-        generator.prepare()
-        generator.notificationOccurred(.warning)
-        #endif
-    }
-
-    private func playSuccessHaptic() {
-        #if os(iOS)
-        let generator = UINotificationFeedbackGenerator()
-        generator.prepare()
-        generator.notificationOccurred(.success)
-        #endif
+    private func playHaptic(_ event: DoomHapticEvent) {
+        DoomHapticsService.play(event, enabled: enableHaptics)
     }
 
     @MainActor
