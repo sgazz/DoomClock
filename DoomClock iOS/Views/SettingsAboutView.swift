@@ -136,7 +136,10 @@ struct SettingsAboutView: View {
     }
 
     private func dangerousButton(title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button(action: {
+            DoomSoundService.play(.buttonTap)
+            action()
+        }) {
             Text(title)
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
                 .foregroundStyle(mode.accentColor)

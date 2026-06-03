@@ -12,9 +12,12 @@ struct BootSettingsPanel: View {
     @Binding var enableHaptics: Bool
     @Binding var showIncidentFeed: Bool
     @Binding var showDailyIncident: Bool
+    @Binding var soundVolume: Double
     let onClose: () -> Void
     let onClearIdentity: () -> Void
-    let onToggleHaptic: () -> Void
+    let onToggleFeedback: () -> Void
+    let onTestSound: () -> Void
+    let onTestCrtShutdown: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -29,6 +32,9 @@ struct BootSettingsPanel: View {
                     systemSection
                         .padding(.bottom, 18)
 
+                    soundsSection
+                        .padding(.bottom, 18)
+
                     experienceSection
                         .padding(.bottom, 18)
 
@@ -39,7 +45,7 @@ struct BootSettingsPanel: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxHeight: 300)
+            .frame(maxHeight: 360)
 
             HStack(spacing: 10) {
                 settingsActionButton(title: "[ CLOSE ]", prominent: true, action: onClose)
@@ -78,7 +84,7 @@ struct BootSettingsPanel: View {
                 isOn: alwaysShowBootSequence
             ) {
                 alwaysShowBootSequence.toggle()
-                onToggleHaptic()
+                onToggleFeedback()
             }
 
             settingsToggleRow(
@@ -86,7 +92,7 @@ struct BootSettingsPanel: View {
                 isOn: enableCRTEffects
             ) {
                 enableCRTEffects.toggle()
-                onToggleHaptic()
+                onToggleFeedback()
             }
 
             settingsToggleRow(
@@ -94,15 +100,7 @@ struct BootSettingsPanel: View {
                 isOn: enableBootAnimations
             ) {
                 enableBootAnimations.toggle()
-                onToggleHaptic()
-            }
-
-            settingsToggleRow(
-                label: "SOUNDS",
-                isOn: enableSounds
-            ) {
-                enableSounds.toggle()
-                onToggleHaptic()
+                onToggleFeedback()
             }
 
             settingsToggleRow(
@@ -110,13 +108,47 @@ struct BootSettingsPanel: View {
                 isOn: enableHaptics
             ) {
                 enableHaptics.toggle()
-                onToggleHaptic()
+                onToggleFeedback()
             }
 
             settingsInfoRow(
                 label: "REDUCE MOTION:",
                 value: reduceMotionActive ? "SYSTEM ACTIVE" : "SYSTEM CONTROLLED"
             )
+        }
+    }
+
+    private var soundsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            settingsSectionHeader("[ SOUNDS ]")
+
+            settingsToggleRow(
+                label: "SOUNDS ENABLED",
+                isOn: enableSounds
+            ) {
+                enableSounds.toggle()
+                onToggleFeedback()
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("SOUND VOLUME:")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(color.opacity(0.52))
+                    Spacer(minLength: 8)
+                    Text("\(Int((soundVolume * 100).rounded()))%")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(color.opacity(0.82))
+                }
+
+                Slider(value: $soundVolume, in: 0...1)
+                    .tint(color.opacity(0.72))
+                    .disabled(!enableSounds)
+                    .opacity(enableSounds ? 1 : 0.45)
+            }
+
+            settingsActionButton(title: "[ TEST SOUND ]", prominent: false, action: onTestSound)
+            settingsActionButton(title: "[ TEST CRT SHUTDOWN ]", prominent: false, action: onTestCrtShutdown)
         }
     }
 
@@ -129,7 +161,7 @@ struct BootSettingsPanel: View {
                 isOn: showIncidentFeed
             ) {
                 showIncidentFeed.toggle()
-                onToggleHaptic()
+                onToggleFeedback()
             }
 
             settingsToggleRow(
@@ -137,7 +169,7 @@ struct BootSettingsPanel: View {
                 isOn: showDailyIncident
             ) {
                 showDailyIncident.toggle()
-                onToggleHaptic()
+                onToggleFeedback()
             }
         }
     }
@@ -147,7 +179,7 @@ struct BootSettingsPanel: View {
             settingsSectionHeader("[ ARCHIVE ]")
             settingsInfoRow(label: "ARCHIVE ACCESS:", value: "LOCAL ONLY")
             settingsInfoRow(label: "DATA STORAGE:", value: "THIS DEVICE")
-            settingsInfoRow(label: "REGISTRY LINK:", value: "UNVERIFIED")
+            settingsInfoRow(label: "REGISTRY LINK:", value: "UNRESOLVED")
             settingsInfoRow(label: "ARCHIVE CYCLE:", value: "7342")
         }
     }

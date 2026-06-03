@@ -8,7 +8,10 @@ struct TerminalButton: View {
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            DoomSoundService.play(.buttonTap)
+            action()
+        }) {
             Text(title)
                 .font(.system(.caption2, design: .monospaced).weight(.semibold))
                 .lineLimit(1)

@@ -40,7 +40,10 @@ enum DoomClockUI {
     }
 
     static func primaryButton(title: String, color: Color, isDisabled: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button(action: {
+            DoomSoundService.play(.buttonTap)
+            action()
+        }) {
             Text(title)
                 .font(.system(size: 16, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.black)
@@ -60,7 +63,10 @@ enum DoomClockUI {
     }
 
     static func secondaryButton(title: String, color: Color, isDisabled: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button(action: {
+            DoomSoundService.play(.buttonTap)
+            action()
+        }) {
             Text(title)
                 .font(.system(size: 16, weight: .bold, design: .monospaced))
                 .foregroundStyle(color)

@@ -40,6 +40,7 @@ struct BootSequenceView: View {
     @AppStorage(BootPreferencesStore.alwaysShowBootSequenceKey) private var alwaysShowBootSequence = true
     @AppStorage(BootPreferencesStore.enableCRTEffectsKey) private var enableCRTEffects = true
     @AppStorage(BootPreferencesStore.enableSoundsKey) private var enableSounds = true
+    @AppStorage(BootPreferencesStore.soundVolumeKey) private var soundVolume = 1.0
     @AppStorage(BootPreferencesStore.enableHapticsKey) private var enableHaptics = true
     @AppStorage(BootPreferencesStore.enableBootAnimationsKey) private var enableBootAnimations = true
     @AppStorage(BootPreferencesStore.showIncidentFeedKey) private var showIncidentFeed = true
@@ -272,9 +273,12 @@ struct BootSequenceView: View {
                                 enableHaptics: $enableHaptics,
                                 showIncidentFeed: $showIncidentFeed,
                                 showDailyIncident: $showDailyIncident,
+                                soundVolume: $soundVolume,
                                 onClose: closeDesktopPanel,
                                 onClearIdentity: clearIdentityFromSettings,
-                                onToggleHaptic: { playHaptic(.selection) }
+                                onToggleFeedback: playToggleFeedback,
+                                onTestSound: { DoomSoundService.playTest() },
+                                onTestCrtShutdown: { DoomSoundService.playCrtShutdownTest() }
                             )
                             .zIndex(1)
                         }
@@ -372,6 +376,7 @@ struct BootSequenceView: View {
 
     private func startBootSequence() {
         guard hasCompletedPowerOn else { return }
+        playSound(.boot)
         archivePanelPhase = .wifiScanning(frame: 0)
         bootTask?.cancel()
         bootTask = Task {
@@ -544,6 +549,7 @@ struct BootSequenceView: View {
         OperatorIdentityStore.save(name: operatorName, purpose: operatorPurpose)
         hasAuthenticated = true
         focusedLoginField = nil
+        playSound(.buttonTap)
         playHaptic(.authenticate)
 
         bootPhase = .bootingPhase2
@@ -668,6 +674,7 @@ struct BootSequenceView: View {
     private func openSettings() {
         guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
         playHaptic(.panelOpen)
+        playSound(.windowOpen)
         activeDesktopPanel = .settings
     }
 
@@ -675,6 +682,7 @@ struct BootSequenceView: View {
     private func openHelp() {
         guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
         playHaptic(.panelOpen)
+        playSound(.windowOpen)
         activeDesktopPanel = .help
     }
 
@@ -682,6 +690,7 @@ struct BootSequenceView: View {
     private func openNewCountdown() {
         guard bootPhase == .complete, !isShuttingDown, !isExitingBoot else { return }
         playHaptic(.panelOpen)
+        playSound(.windowOpen)
         activeDesktopPanel = .newCountdown
         if !reduceMotion {
             focusedCountdownField = .title
@@ -698,6 +707,12 @@ struct BootSequenceView: View {
 
     @MainActor
     private func closeDesktopPanel() {
+        let closingPanel = activeDesktopPanel
+        if closingPanel == .settings {
+            playSound(.settingsSave)
+        } else if closingPanel != nil {
+            playSound(.windowClose)
+        }
         playHaptic(.panelClose)
         focusedCountdownField = nil
         activeDesktopPanel = nil
@@ -725,6 +740,7 @@ struct BootSequenceView: View {
 
         stopIdleArtifacts()
         playHaptic(.enterArchive)
+        playSound(.buttonTap)
         isExitingBoot = true
 
         if reduceMotion {
@@ -753,6 +769,7 @@ struct BootSequenceView: View {
         focusedCountdownField = nil
 
         if reduceMotion {
+            DoomSoundService.playCrtShutdown()
             shutdownCollapseScale = 0.015
             shutdownStage = .black
             shutdownDotOpacity = 0
@@ -761,6 +778,7 @@ struct BootSequenceView: View {
         }
 
         shutdownStage = .collapse
+        DoomSoundService.playCrtShutdown()
         withAnimation(.easeIn(duration: 0.28)) {
             shutdownCollapseScale = 0.012
         }
@@ -890,10 +908,20 @@ struct BootSequenceView: View {
         guard !hasPlayedCompleteHaptic else { return }
         hasPlayedCompleteHaptic = true
         playHaptic(.bootComplete)
+        playSound(.boot)
     }
 
     private func playHaptic(_ event: DoomHapticEvent) {
         DoomHapticsService.play(event, enabled: enableHaptics)
+    }
+
+    private func playSound(_ effect: SoundEffect) {
+        DoomSoundService.play(effect)
+    }
+
+    private func playToggleFeedback() {
+        playHaptic(.selection)
+        playSound(.toggle)
     }
 
     @MainActor
